@@ -192,9 +192,16 @@ class FixedUpdateInGamePatch
                 }
                 if ( !Main.DisableLobbyInfo.Value && __instance.cosmetics.nameText.text != $"<size=70%><color=#00ffff>Lv.{__instance.Data.PlayerLevel}</color> | <color=yellow>{AmongUsClient.Instance.GetClientFromCharacter(__instance).PlatformData.Platform}</size>\n<color={color}>{__instance.Data.PlayerName}</color>")
                 {
-                    __instance.cosmetics.nameText.text = $"<size=70%><color=#00ffff>Lv.{__instance.Data.PlayerLevel}</color> | <color=yellow>{AmongUsClient.Instance.GetClientFromCharacter(__instance).PlatformData.Platform}</size>\n<color={color}>{__instance.Data.PlayerName}</color>";
+                    __instance.cosmetics.nameText.text = $"<size=60%><color=#00ffff>Lv.{__instance.Data.PlayerLevel + 1}</color> | <color=yellow>{Utils.ConvertPlatform(AmongUsClient.Instance.GetClientFromCharacter(__instance).PlatformData.Platform)}</size>\n<color={color}>{__instance.Data.PlayerName}</color>";
                 }
                 LastColors[__instance.PlayerId] = color;
+            }
+        }
+        if (Utils.InGame)
+        {
+            if (__instance.cosmetics.nameText.text != __instance.Data.PlayerName)
+            {
+                __instance.cosmetics.nameText.text = __instance.Data.PlayerName;             
             }
         }
 

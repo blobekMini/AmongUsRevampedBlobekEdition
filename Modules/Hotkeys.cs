@@ -28,9 +28,7 @@ internal class Hotkeys
 
         if (Input.GetKey(KeyCode.L) && Shift && Enter)
         {
-            MessageWriter writer = AmongUsClient.Instance.StartEndGame();
-            writer.Write((byte)GameOverReason.ImpostorDisconnect);
-            AmongUsClient.Instance.FinishEndGame(writer);
+            GameManager.Instance.RpcEndGame(GameOverReason.ImpostorDisconnect, false);
         }
         
         if (Input.GetKey(KeyCode.M) && Shift && Enter && Utils.InGame)

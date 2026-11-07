@@ -167,7 +167,7 @@ public static class ReactorSystemTypePatch
     {
         if (__instance.IsActive && __instance.Countdown <= 0 && !Utils.HandlingGameEnd)
         {
-            Utils.ContinueEndGame((byte)GameOverReason.ImpostorsBySabotage);
+            Utils.ContinueEndGame(GameOverReason.ImpostorsBySabotage);
             NormalGameEndChecker.CheckWinnerText("ImpostorSabotage");
         }
     }
@@ -201,7 +201,7 @@ public static class HeliSabotageSystemPatch
     {
         if (__instance.IsActive && __instance.Countdown <= 0 && !Utils.HandlingGameEnd)
         {
-            Utils.ContinueEndGame((byte)GameOverReason.ImpostorsBySabotage);
+            Utils.ContinueEndGame(GameOverReason.ImpostorsBySabotage);
             NormalGameEndChecker.CheckWinnerText("ImpostorSabotage");
         }
     }
@@ -245,7 +245,7 @@ public static class LifeSuppSystemTypePatch
     {
         if (__instance.IsActive && __instance.Countdown <= 0 && !Utils.HandlingGameEnd)
         {
-            Utils.ContinueEndGame((byte)GameOverReason.ImpostorsBySabotage);
+            Utils.ContinueEndGame(GameOverReason.ImpostorsBySabotage);
             NormalGameEndChecker.CheckWinnerText("ImpostorSabotage");
         }
     }

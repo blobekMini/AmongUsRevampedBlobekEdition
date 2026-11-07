@@ -460,17 +460,18 @@ public static class Utils
         {
             foreach (PlayerControl pc in PlayerControl.AllPlayerControls)
             {
-                CustomGameOverReason = (byte)GameOverReason.ImpostorsByVote;
                 pc.RpcSetRole(AmongUs.GameOptions.RoleTypes.CrewmateGhost, false);
             }
+            new LateTask(() =>
+            {
+                ContinueEndGame(GameOverReason.ImpostorsByVote);
+            }, 1f, "CustomWinnerEndGame"); 
         }
 
         if (winnerType == 1)
         {
             foreach (PlayerControl pc in PlayerControl.AllPlayerControls)
             {
-                CustomGameOverReason = (byte)GameOverReason.ImpostorsByVote;
-
                 if (pc != winner) 
                 {
                     pc.RpcSetRole(AmongUs.GameOptions.RoleTypes.CrewmateGhost, false);
@@ -480,19 +481,16 @@ public static class Utils
                     pc.RpcSetRole(AmongUs.GameOptions.RoleTypes.ImpostorGhost, false);                    
                 }
             }
-        }
-
-        new LateTask(() =>
-        {
-            ContinueEndGame((byte)CustomGameOverReason);
-        }, 1f, "CustomWinnerEndGame");     
+            new LateTask(() =>
+            {
+                ContinueEndGame(GameOverReason.ImpostorsByVote);
+            }, 1f, "CustomWinnerEndGame"); 
+        }    
     }
 
-    public static void ContinueEndGame(byte gameOverReason)
+    public static void ContinueEndGame(GameOverReason gameOverReason)
     {
-        MessageWriter writer = AmongUsClient.Instance.StartEndGame();
-        writer.Write(gameOverReason);
-        AmongUsClient.Instance.FinishEndGame(writer);
+        GameManager.Instance.RpcEndGame(gameOverReason, false);
         HandlingGameEnd = false;
         Logger.Info($"{gameOverReason}", "ContinueEndGame");
     }
@@ -912,5 +910,15 @@ public static class Utils
 	    }
 
 	    return newText;
+    }
+
+    public static string ConvertPlatform(Platforms input)
+    {
+        if (input == Platforms.StandaloneSteamPC) return "Steam";
+        if (input == Platforms.Playstation) return "PS";
+        if (input == Platforms.StandaloneWin10) return "Win10";
+        if (input == Platforms.StandaloneEpicPC) return "Epic";
+
+        return input.ToString();
     }
 }

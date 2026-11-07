@@ -149,9 +149,7 @@ internal static class SendChatPatch
             __instance.freeChatField.textArea.SetText(string.Empty);
 
             if (!Utils.InGame) return false;
-            MessageWriter writer = AmongUsClient.Instance.StartEndGame();
-            writer.Write((byte)GameOverReason.ImpostorDisconnect);
-            AmongUsClient.Instance.FinishEndGame(writer);
+            GameManager.Instance.RpcEndGame(GameOverReason.ImpostorDisconnect, false);
             return false;
         }
 
@@ -859,9 +857,7 @@ public static class RPCHandlerPatch
                 if (text == "/eg" || text == "/endgame")
                 {
                     if (Utils.CheckAccessLevel(__instance.Data.FriendCode) < Options.SlashStartAndEndGameCmd.GetValue()) return;
-                    MessageWriter writer = AmongUsClient.Instance.StartEndGame();
-                    writer.Write((byte)GameOverReason.ImpostorDisconnect);
-                    AmongUsClient.Instance.FinishEndGame(writer);
+                    GameManager.Instance.RpcEndGame(GameOverReason.ImpostorDisconnect, false);
                 }
 
                 if (text == "/em" || text == "/endmeeting")
