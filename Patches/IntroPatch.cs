@@ -19,6 +19,11 @@ internal static class CoShowIntroPatch
 
         foreach (var p in PlayerControl.AllPlayerControls)
         {
+            if (p.cosmetics.nameText.text != p.Data.PlayerName)
+            {
+                p.cosmetics.nameText.text = p.Data.PlayerName;             
+            }
+
             p.protectedByGuardianId = -1;
 
             if (NormalGameEndChecker.firstDeath != null && NormalGameEndChecker.firstDeath == p.Data.PlayerName && Options.ShieldFirstDeath.GetBool() && Options.Gamemode.GetValue() != 1)

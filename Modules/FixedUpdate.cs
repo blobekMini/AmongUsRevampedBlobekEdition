@@ -197,13 +197,6 @@ class FixedUpdateInGamePatch
                 LastColors[__instance.PlayerId] = color;
             }
         }
-        if (Utils.InGame)
-        {
-            if (__instance.cosmetics.nameText.text != __instance.Data.PlayerName)
-            {
-                __instance.cosmetics.nameText.text = __instance.Data.PlayerName;             
-            }
-        }
 
         if (!AmongUsClient.Instance.AmHost) return;
 
