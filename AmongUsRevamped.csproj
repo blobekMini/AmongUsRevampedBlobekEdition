@@ -3,9 +3,12 @@
         <TargetFramework Condition="'$(Configuration)' == 'Android'">net8.0</TargetFramework>
         <TargetFramework Condition="'$(Configuration)' != 'Android'">net6.0</TargetFramework>
         <LangVersion>latest</LangVersion>
+        <Version>2.3.0</Version>
+        <AssemblyVersion>2.3.0.0</AssemblyVersion>
+        <FileVersion>2.3.0.0</FileVersion>
         <DebugType>embedded</DebugType>
-        <Description>The ultimate Host-Only mod without Modded Protocol</Description>
-        <Authors>apemv</Authors>
+        <Description>Among Us Revamped Blobek Edition, a modified host-only derivative of ApeMV/AmongUsRevamped</Description>
+        <Authors>Blobek Edition (based on ApeMV/AmongUsRevamped)</Authors>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <Configurations>Release;Android</Configurations>
         <Configuration Condition="'$(Configuration)' == ''">Release</Configuration>

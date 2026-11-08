@@ -28,6 +28,7 @@ public static class BanManager
     public static string AdminListPath = $"{DataPath}/AUR-DATA/Admin.txt";
     private static string TemplatePath = $"{DataPath}/AUR-DATA/Templates.txt";
     private static string StartWordsPath = $"{DataPath}/AUR-DATA/Startwords.txt";
+    public static string CommandWhitelistPath = $"{DataPath}/AUR-DATA/CommandWhitelist.txt";
     public static Dictionary<string, string> Templates = new();
     public static void Init()
     {
@@ -43,6 +44,11 @@ public static class BanManager
             CheckFile(AdminListPath, Translator.Get("adminWelcome"), "Admin.txt");
             CheckFile(TemplatePath, Translator.Get("templateWelcome"), "Templates.txt");
             CheckFile(StartWordsPath, Translator.Get("startWordsWelcome"), "StartWords.txt");
+            CheckFile(CommandWhitelistPath, "# Friend codes of admins allowed command-related anti-cheat grace", "CommandWhitelist.txt");
+            CommandBindings.Initialize();
+            CheckFile(LobbyPresenceNotifier.ConfigPath,
+                "# One entry per line: FriendCode#0000,PlayerName (both must match), FriendCode#0000, or exact PlayerName.\n# Example:\n# friendcode#0000,PlayerName\n# friendcode#0000\n# PlayerName\n",
+                "notifypresence.txt");
 
             LoadTemplates();
 
@@ -52,6 +58,68 @@ public static class BanManager
             Logger.Exception(ex, "BanManager");
         }
     }
+
+    public static bool IsCommandWhitelistedAdmin(PlayerControl player)
+    {
+        string friendCode = player?.Data?.FriendCode;
+        if (string.IsNullOrWhiteSpace(friendCode) || Utils.CheckAccessLevel(friendCode) < 3) return false;
+
+        try
+        {
+            return File.Exists(CommandWhitelistPath) && File.ReadLines(CommandWhitelistPath)
+                .Select(line => line.Trim())
+                .Any(line => line.Equals(friendCode.Trim(), StringComparison.OrdinalIgnoreCase));
+        }
+        catch (Exception ex)
+        {
+            Logger.Exception(ex, "CommandWhitelist");
+            return false;
+        }
+    }
+
+    public static bool AddCommandWhitelist(string friendCode)
+    {
+        if (string.IsNullOrWhiteSpace(friendCode)) return false;
+
+        try
+        {
+            if (!Directory.Exists($"{DataPath}/AUR-DATA")) Directory.CreateDirectory($"{DataPath}/AUR-DATA");
+            CheckFile(CommandWhitelistPath, "# Friend codes of admins allowed command-related anti-cheat grace", "CommandWhitelist.txt");
+            string normalizedFriendCode = friendCode.Trim();
+            if (File.ReadLines(CommandWhitelistPath).Select(line => line.Trim())
+                .Any(line => line.Equals(normalizedFriendCode, StringComparison.OrdinalIgnoreCase))) return false;
+
+            File.AppendAllText(CommandWhitelistPath, normalizedFriendCode + Environment.NewLine);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Logger.Exception(ex, "CommandWhitelist");
+            return false;
+        }
+    }
+
+    public static bool RemoveCommandWhitelist(string friendCode)
+    {
+        if (string.IsNullOrWhiteSpace(friendCode) || !File.Exists(CommandWhitelistPath)) return false;
+
+        try
+        {
+            string normalizedFriendCode = friendCode.Trim();
+            string[] lines = File.ReadAllLines(CommandWhitelistPath);
+            string[] remainingLines = lines.Where(line => !line.Trim().Equals(normalizedFriendCode, StringComparison.OrdinalIgnoreCase)).ToArray();
+            if (remainingLines.Length == lines.Length) return false;
+
+            File.WriteAllLines(CommandWhitelistPath, remainingLines);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Logger.Exception(ex, "CommandWhitelist");
+            return false;
+        }
+    }
+
     private static string GetResourcesTxt(string path)
     {
         var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(path);
@@ -94,7 +162,7 @@ public static class BanManager
 
     public static void CheckBanPlayer(ClientData player)
     {
-        if (!AmongUsClient.Instance.AmHost) return;
+        if (!AmongUsClient.Instance.AmHost || IsLocalHost(player)) return;
 
         string friendcode = player?.FriendCode;
 
@@ -144,9 +212,22 @@ public static class BanManager
         }
         return false;
     }
+
+    private static bool IsLocalHost(ClientData client)
+    {
+        AmongUsClient gameClient = AmongUsClient.Instance;
+        return client != null && gameClient != null && gameClient.AmHost && client.Id == gameClient.ClientId;
+    }
+
+    private static bool IsLocalHost(PlayerControl player)
+    {
+        AmongUsClient gameClient = AmongUsClient.Instance;
+        return player?.Data != null && gameClient != null && gameClient.AmHost && player.Data.ClientId == gameClient.ClientId;
+    }
+
     public static bool IsPlayerInDenyName(ClientData client, string name)
     {
-        if (name == "" || !AmongUsClient.Instance.AmHost) return false;
+        if (name == "" || !AmongUsClient.Instance.AmHost || IsLocalHost(client)) return false;
 
         var deniedNames = File.ReadAllLines(DenyNameListPath).Where(x => !x.StartsWith("#"));
 
@@ -163,7 +244,7 @@ public static class BanManager
     public static bool IsWordBanned(PlayerControl player, string input)
     {
 
-        if (input == "" || !AmongUsClient.Instance.AmHost || Utils.CheckAccessLevel(player.Data.FriendCode) > 0 || !Options.EnableDeniedWords.GetBool()) return false;
+        if (input == "" || !AmongUsClient.Instance.AmHost || IsLocalHost(player) || Utils.CheckAccessLevel(player.Data.FriendCode) > 0 || !Options.EnableDeniedWords.GetBool()) return false;
 
         int clientId = player.Data.ClientId;
         var bannedWords = File.ReadAllLines(BanWordPath).Select(l => l.Trim()).Where(l => l.Length > 0 && !l.StartsWith("#"));
@@ -199,7 +280,7 @@ public static class BanManager
 
     public static bool IsStartWord(PlayerControl player, string input)
     {
-        if (input == "" || !AmongUsClient.Instance.AmHost || Utils.CheckAccessLevel(player.Data.FriendCode) > 0 || !Options.AutoKickStart.GetBool() || !Utils.IsLobby) return false;
+        if (input == "" || !AmongUsClient.Instance.AmHost || IsLocalHost(player) || Utils.CheckAccessLevel(player.Data.FriendCode) > 0 || !Options.AutoKickStart.GetBool() || !Utils.IsLobby) return false;
 
         int clientId = player.Data.ClientId;
         var startWords = File.ReadAllLines(StartWordsPath).Select(l => l.Trim()).Where(l => l.Length > 0 && !l.StartsWith("#"));

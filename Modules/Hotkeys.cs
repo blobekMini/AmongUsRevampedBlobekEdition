@@ -26,6 +26,11 @@ internal class Hotkeys
         
         if (!AmongUsClient.Instance.AmHost) return;
 
+        if (Input.GetKeyDown(KeyCode.F10))
+        {
+            InGameCommandConsole.Toggle();
+        }
+
         if (Input.GetKey(KeyCode.L) && Shift && Enter)
         {
             GameManager.Instance.RpcEndGame(GameOverReason.ImpostorDisconnect, false);

@@ -17,7 +17,8 @@ public static class Zoom
 
     public static void Postfix()
     {
-        bool canZoom = (Utils.IsShip && !Utils.IsMeeting && Utils.CanMove && PlayerControl.LocalPlayer.Data.IsDead) || (Utils.IsLobby && Utils.CanMove);
+        bool canZoom = Main.EnableZoom.Value && PlayerControl.LocalPlayer != null &&
+            ((Utils.IsShip && !Utils.IsMeeting && Utils.CanMove) || (Utils.IsLobby && Utils.CanMove));
 
         if (!canZoom)
         {
@@ -28,7 +29,7 @@ public static class Zoom
         if (Input.mouseScrollDelta.y > 0)
             ChangeZoom(1f / ZoomFactor);
 
-        if (Input.mouseScrollDelta.y < 0 && (Utils.IsDead || Utils.IsFreePlay || Utils.IsLobby))
+        if (Input.mouseScrollDelta.y < 0)
             ChangeZoom(ZoomFactor);
     }
 

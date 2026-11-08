@@ -1,4 +1,19 @@
 bin/
 obj/
+dist/
+artifacts/
+AUR-DATA/
+BepInEx/
+Logs/
+*.log
+build-number.txt
+.vs/
+*.user
+*.suo
+Thumbs.db
+.DS_Store
 
 AmongUsRevamped.sln
+build.ps1
+blob.js
+install-mod-laptop-win.ps1

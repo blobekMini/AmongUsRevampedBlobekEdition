@@ -15,10 +15,12 @@ namespace AmongUsRevamped;
 // dotnet build -c release
 // dotnet build -c android
 
-[BepInAutoPlugin]
+[BepInPlugin(Id, "Among Us Revamped Blobek Edition", "2.3.0")]
 [BepInProcess("Among Us.exe")]
 public partial class Main : BasePlugin
 {
+    public const string Id = "apemv.amongusrevamped";
+
     public Harmony Harmony { get; } = new(Id);
     public static BepInEx.Logging.ManualLogSource Logger;
     public static BasePlugin Instance;
@@ -39,6 +41,12 @@ public partial class Main : BasePlugin
     public static ConfigEntry<bool> DisableCompatibilityWarning { get; private set; }
     public static ConfigEntry<bool> DisableChatModifier { get; private set; }
     public static ConfigEntry<bool> DisableLobbyInfo { get; private set; }
+    public static ConfigEntry<bool> AlwaysShowChat { get; private set; }
+    public static ConfigEntry<bool> SeeGhosts { get; private set; }
+    public static ConfigEntry<bool> EnableZoom { get; private set; }
+    public static ConfigEntry<bool> PreviewRoles { get; private set; }
+    public static ConfigEntry<bool> PreviewDevices { get; private set; }
+    public static ConfigEntry<bool> PreviewLevels { get; private set; }
 
     public static NormalGameOptionsV12 NormalOptions => GameOptionsManager.Instance != null ? GameOptionsManager.Instance.currentNormalGameOptions : null;
     public static HideNSeekGameOptionsV12 HideNSeekOptions => GameOptionsManager.Instance != null ? GameOptionsManager.Instance.currentHideNSeekGameOptions : null;
@@ -46,7 +54,14 @@ public partial class Main : BasePlugin
 
     public static bool HasArgumentException;
     public static string CredentialsText;
-    public const string ModVersion = "v2.3.0";
+    public static string ModVersion => $"v{typeof(Main).Assembly.GetName().Version?.ToString(4) ?? "2.3.0.0"}";
+    public static bool CommandPreviewsEnabled { get; private set; }
+
+    public static void SetHostModVersion(string version)
+    {
+        CommandPreviewsEnabled = string.Equals(version, ModVersion, StringComparison.OrdinalIgnoreCase);
+        Logger?.LogInfo($"Host mod version {version}; local version {ModVersion}; command previews {(CommandPreviewsEnabled ? "enabled" : "disabled")}.");
+    }
 
     public static float GameTimer;
     public static float AfkTimer;
@@ -79,7 +94,7 @@ public partial class Main : BasePlugin
     public override void Load()
     {
         var handler = AmongUsRevamped.Logger.Handler("GitVersion");        
-        Logger = BepInEx.Logging.Logger.CreateLogSource("AmongUsRevamped");
+        Logger = BepInEx.Logging.Logger.CreateLogSource("AUR Blobek Edition");
         AmongUsRevamped.Logger.Enable();
         Instance = this;
 
@@ -100,6 +115,13 @@ public partial class Main : BasePlugin
         DisableCompatibilityWarning = Config.Bind("Client Options", "Disable Compatibility Warning", false);
         DisableChatModifier = Config.Bind("Client Options", "Disable Chat Modifications", false);
         DisableLobbyInfo = Config.Bind("Client Options", "Disable Lobby Info", false);
+        AlwaysShowChat = Config.Bind("Client Options", "Always Show Chat", false);
+        SeeGhosts = Config.Bind("Client Options", "See Ghosts", false);
+        EnableZoom = Config.Bind("Client Options", "Scrollwheel Zoom", false);
+        PreviewRoles = Config.Bind("Client Options", "Preview Roles", false);
+        PreviewDevices = Config.Bind("Client Options", "Preview Devices", false);
+        PreviewLevels = Config.Bind("Client Options", "Preview Levels", false);
+        Config.Save();
 
         Translator.Init();
         Translator.Reload();

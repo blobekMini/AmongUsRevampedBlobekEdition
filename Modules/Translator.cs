@@ -24,7 +24,7 @@ public static class Translator
 
     public static void Init()
     {
-        Logger.Info($" Among Us Revamped {Main.ModVersion}", "Init");
+        Logger.Info($" Among Us Revamped Blobek Edition {Main.ModVersion}", "Init");
 
         _currentLang = SupportedLangs.English;
         if (!Directory.Exists(LanguageFolder)) Directory.CreateDirectory(LanguageFolder);
@@ -36,7 +36,7 @@ public static class Translator
             if (!File.Exists(path))
             {
                 Logger.Warn($" Creating a new language file", "Translator");
-                File.WriteAllText(path, "# In this file you can set your Among Us Revamped language.\n# To set the language, replace the 'English' text below with the language you want to select.\n# Supported languages: English, Spanish, SimplifiedChinese, Italian, Japanese, Russian\n\nEnglish");
+                File.WriteAllText(path, "# In this file you can set your Among Us Revamped Blobek Edition language.\n# To set the language, replace the 'English' text below with the language you want to select.\n# Supported languages: English, Spanish, SimplifiedChinese, Italian, Japanese, Russian\n\nEnglish");
             }
 
             string l = File.ReadAllLines(path).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x) && !x.StartsWith("#"))?.Trim() ?? "English";

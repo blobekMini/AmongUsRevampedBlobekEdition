@@ -58,7 +58,7 @@ namespace AmongUsRevamped
             Utils.ClearLeftoverData();
             NormalGameEndChecker.LastWinReason = "";
 
-            Main.CredentialsText = $"<color=#FFD700>Among Us Revamped</color><color=#ffffff> {Main.ModVersion}</color>";
+            Main.CredentialsText = $"<color=#FFD700>Among Us Revamped Blobek Edition</color><color=#ffffff> {Main.ModVersion}</color>";
 
             var credentials = UnityEngine.Object.Instantiate(__instance.text);
             credentials.text = Main.CredentialsText;

@@ -12,6 +12,7 @@ public static class EndGameManagerPatch
     {
         Logger.Info(" -------- GAME ENDED --------", "EndGame");
 
+        LobbyPlayerHistory.RecordRoundPlayers();
         Utils.ClearLeftoverData();
         OptionManager.RestoreOptions();
 

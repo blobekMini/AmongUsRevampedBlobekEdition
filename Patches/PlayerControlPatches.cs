@@ -15,6 +15,14 @@ class ReportDeadBodyPatch
     public static bool Prefix(PlayerControl __instance, [HarmonyArgument(0)] NetworkedPlayerInfo target)
     {
         if (!AmongUsClient.Instance.AmHost || __instance == null) return true;
+        bool disabledBySettings = target == null
+            ? Options.DisableMeetings.GetBool()
+            : Options.DisableBodyReports.GetBool();
+        if (disabledBySettings)
+        {
+            Logger.Info($" {__instance.Data?.PlayerName ?? "Unknown player"} attempted to {(target == null ? "call a meeting" : "report a body")}; blocked by settings", "ReportDeadBodyPatch");
+            return false;
+        }
         if (Utils.isHideNSeek) return false;
 
         if (Options.DisableAnnoyingMeetingCalls.GetBool() && !Utils.CanCallMeetings && target == null && Options.Gamemode.GetValue() < 1)
@@ -49,6 +57,16 @@ class ReportDeadBodyPatch
     }
 }
 
+[HarmonyPatch(typeof(PlayerControl), nameof(PlayerControl.Exiled))]
+internal static class PlayerControlExiledPatch
+{
+    public static void Prefix(PlayerControl __instance)
+    {
+        if (AmongUsClient.Instance?.AmHost != true || __instance?.Data == null) return;
+        ChatCommandHelpers.RememberRoleBeforeDeath(__instance, __instance.Data.RoleType);
+    }
+}
+
 [HarmonyPatch(typeof(PlayerControl), nameof(PlayerControl.MurderPlayer))]
 internal static class MurderPlayerPatch
 {
@@ -58,6 +76,11 @@ internal static class MurderPlayerPatch
     public static void Prefix(PlayerControl __instance, [HarmonyArgument(0)] PlayerControl target, [HarmonyArgument(1)] MurderResultFlags resultFlags, ref bool __state)
     {
         if (!AmongUsClient.Instance.AmHost) return;
+
+        if (target?.Data != null && !target.Data.IsDead && resultFlags.HasFlag(MurderResultFlags.Succeeded))
+        {
+            ChatCommandHelpers.RememberRoleBeforeDeath(target, target.Data.RoleType);
+        }
 
         byte playerId = __instance.Data.PlayerId;
 
@@ -227,7 +250,7 @@ class PlayerControlCompleteTaskPatch
 
         if ((GameData.Instance.CompletedTasks - ignoredCompletedTasks) >= (GameData.Instance.TotalTasks - ignoredTasks)*0.01*Options.TaskPercentNeededToWin.GetInt())
         {
-            Utils.ContinueEndGame((byte)GameOverReason.CrewmatesByVote);
+            Utils.ContinueEndGame(GameOverReason.CrewmatesByVote);
             NormalGameEndChecker.CheckWinnerText("CrewmateTasks");
         }
     }

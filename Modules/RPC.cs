@@ -8,8 +8,12 @@ namespace AmongUsRevamped
 {
     public enum CustomRPC
     {
-        SyncCustomOptions,
-        AddCustomSettingsChangeMessage,
+        SyncCustomOptions = 70,
+        AddCustomSettingsChangeMessage = 71,
+        PrivateCommandRequest = 72,
+        PrivateCommandReply = 73,
+        ClientVersionProbe = 74,
+        HostVersionReply = 75,
 
     }
 
@@ -56,6 +60,61 @@ namespace AmongUsRevamped
 
     static class RPC
     {
+        public static bool SendClientVersionProbe()
+        {
+            if (AmongUsClient.Instance == null || PlayerControl.LocalPlayer == null ||
+                AmongUsClient.Instance.AmHost || AmongUsClient.Instance.HostId < 0) return false;
+
+            MessageWriter writer = AmongUsClient.Instance.StartRpcImmediately(
+                PlayerControl.LocalPlayer.NetId,
+                (byte)CustomRPC.ClientVersionProbe,
+                SendOption.Reliable,
+                AmongUsClient.Instance.HostId);
+            writer.Write(Main.ModVersion);
+            AmongUsClient.Instance.FinishRpcImmediately(writer);
+            return true;
+        }
+
+        public static void SendHostVersionReply(int targetClientId)
+        {
+            if (AmongUsClient.Instance == null || PlayerControl.LocalPlayer == null || !AmongUsClient.Instance.AmHost) return;
+
+            MessageWriter writer = AmongUsClient.Instance.StartRpcImmediately(
+                PlayerControl.LocalPlayer.NetId,
+                (byte)CustomRPC.HostVersionReply,
+                SendOption.Reliable,
+                targetClientId);
+            writer.Write(Main.ModVersion);
+            AmongUsClient.Instance.FinishRpcImmediately(writer);
+        }
+
+        public static bool SendPrivateCommandRequest(string command)
+        {
+            if (AmongUsClient.Instance == null || PlayerControl.LocalPlayer == null ||
+                AmongUsClient.Instance.AmHost || AmongUsClient.Instance.HostId < 0) return false;
+
+            MessageWriter writer = AmongUsClient.Instance.StartRpcImmediately(
+                PlayerControl.LocalPlayer.NetId,
+                (byte)CustomRPC.PrivateCommandRequest,
+                SendOption.Reliable,
+                AmongUsClient.Instance.HostId);
+            writer.Write(command);
+            AmongUsClient.Instance.FinishRpcImmediately(writer);
+            return true;
+        }
+
+        public static void SendPrivateCommandReply(int targetClientId, string reply)
+        {
+            if (AmongUsClient.Instance == null || PlayerControl.LocalPlayer == null || !AmongUsClient.Instance.AmHost) return;
+
+            MessageWriter writer = AmongUsClient.Instance.StartRpcImmediately(
+                PlayerControl.LocalPlayer.NetId,
+                (byte)CustomRPC.PrivateCommandReply,
+                SendOption.Reliable,
+                targetClientId);
+            writer.Write(reply ?? string.Empty);
+            AmongUsClient.Instance.FinishRpcImmediately(writer);
+        }
 
         public static void AddCustomSettingsChangeMessage(this GameManager manager, OptionItem optionItem, string value, bool playSound)
         {

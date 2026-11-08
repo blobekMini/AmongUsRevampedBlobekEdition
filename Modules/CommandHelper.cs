@@ -23,6 +23,7 @@ internal static class CommandHelper
     static readonly List<Cmd> Commands = new()
     {
         new Cmd { Name = new[] { "/help" }, Prompt = "/help", Description = Translator.Get("helpDesc"), HasVariable = false },
+        new Cmd { Name = new[] { "/page" }, Prompt = "/page {number} {command} [arguments]", Description = "Show a saved output page", HasVariable = true },
 
         new Cmd { Name = new[] { "/sns" }, Prompt = "/sns", Description = Translator.Get("snsDesc"), HasVariable = false },
         new Cmd { Name = new[] { "/shiftandseek" }, Prompt = "/shiftandseek", Description = Translator.Get("snsDesc"), HasVariable = false },
@@ -42,6 +43,9 @@ internal static class CommandHelper
 
         new Cmd { Name = new[] { "/em" }, Prompt = "/em", Description = Translator.Get("emDesc"), HasVariable = false },
         new Cmd { Name = new[] { "/endmeeting" }, Prompt = "/endmeeting", Description = Translator.Get("emDesc"), HasVariable = false },
+        new Cmd { Name = new[] { "/sm" }, Prompt = "/sm", Description = Translator.Get("skipMeetingDesc"), HasVariable = false },
+        new Cmd { Name = new[] { "/skip" }, Prompt = "/skip", Description = Translator.Get("skipMeetingDesc"), HasVariable = false },
+        new Cmd { Name = new[] { "/skipmeeting" }, Prompt = "/skipmeeting", Description = Translator.Get("skipMeetingDesc"), HasVariable = false },
 
         new Cmd { Name = new[] { "/aur" }, Prompt = "/aur", Description = Translator.Get("aurDesc"), HasVariable = false },
         new Cmd { Name = new[] { "/socials" }, Prompt = "/socials", Description = Translator.Get("aurDesc"), HasVariable = false },
@@ -63,6 +67,25 @@ internal static class CommandHelper
         new Cmd { Name = new[] { "/col" }, Prompt = "/col {color}", Description = Translator.Get("colDesc"), HasVariable = true },
         new Cmd { Name = new[] { "/color" }, Prompt = "/color {color}", Description = Translator.Get("colDesc"), HasVariable = true },
         new Cmd { Name = new[] { "/colour" }, Prompt = "/colour {color}", Description = Translator.Get("colDesc"), HasVariable = true },
+        new Cmd { Name = new[] { "/colout" }, Prompt = "/colout {color|rainbow|stop}", Description = Translator.Get("colDesc"), HasVariable = true },
+
+        new Cmd { Name = new[] { "/ucol", "/ucolor", "/ucolour" }, Prompt = "/ucolour {color} {player}", Description = Translator.Get("ucolDesc"), HasVariable = true },
+        new Cmd { Name = new[] { "/ucolout" }, Prompt = "/ucolout {color|rainbow|stop} {player}", Description = Translator.Get("ucolDesc"), HasVariable = true },
+        new Cmd { Name = new[] { "/give" }, Prompt = "/give {role} {player1} [player2] ... | @all", Description = Translator.Get("giveDesc"), HasVariable = true },
+        new Cmd { Name = new[] { "/set" }, Prompt = "/set {role} {player1} {player2} ... | @all", Description = Translator.Get("setDesc"), HasVariable = true },
+        new Cmd { Name = new[] { "/add" }, Prompt = "/add {role} {player1} {player2} ...", Description = Translator.Get("addDesc"), HasVariable = true },
+        new Cmd { Name = new[] { "/rolereset" }, Prompt = "/rolereset {role}", Description = Translator.Get("roleResetDesc"), HasVariable = true },
+        new Cmd { Name = new[] { "/playerreset" }, Prompt = "/playerreset {player}", Description = Translator.Get("playerResetDesc"), HasVariable = true },
+        new Cmd { Name = new[] { "/impcount", "/setimp" }, Prompt = "/setimp {0-15}", Description = "Set total impostors, preserving pre-set roles and randomly rolling the rest", HasVariable = true },
+        new Cmd { Name = new[] { "/settings" }, Prompt = "/settings {help|setting value}", Description = "Show or change supported normal-mode game settings", HasVariable = true },
+        new Cmd { Name = new[] { "/voteout" }, Prompt = "/voteout {player}", Description = Translator.Get("voteOutDesc"), HasVariable = true },
+        new Cmd { Name = new[] { "/cvoteout" }, Prompt = "/cvoteout {color}", Description = Translator.Get("colorVoteOutDesc"), HasVariable = true },
+        new Cmd { Name = new[] { "/revive" }, Prompt = "/revive [player|@all]", Description = Translator.Get("reviveDesc"), HasVariable = true },
+        new Cmd { Name = new[] { "/tm", "/tiemeeting" }, Prompt = "/tm", Description = Translator.Get("tieMeetingDesc"), HasVariable = false },
+        new Cmd { Name = new[] { "/copyfit" }, Prompt = "/copyfit {source} {target1,target2,...}", Description = "Copy a player's full outfit to one or more players", HasVariable = true },
+        new Cmd { Name = new[] { "/whitelist" }, Prompt = "/whitelist {add|remove} {player}", Description = "Manage command-related anti-cheat grace for admins", HasVariable = true },
+        new Cmd { Name = new[] { "/kill" }, Prompt = "/kill {player}", Description = "Kill a player (host permission required)", HasVariable = true },
+        new Cmd { Name = new[] { "/bind" }, Prompt = "/bind '<command>' '<trigger>' [;:prefix;] | list | remove '<trigger>'", Description = "Create host-local text command binds", HasVariable = true },
 
         new Cmd { Name = new[] { "/reload" }, Prompt = "/reload", Description = Translator.Get("reloadDesc"), HasVariable = false },
 
@@ -112,11 +135,13 @@ internal static class CommandHelper
 
         string t = __instance.text;
 
-        if (string.IsNullOrEmpty(t) || !t.StartsWith("/"))
+        if (string.IsNullOrEmpty(t) || (!t.StartsWith("/", StringComparison.Ordinal) && !t.StartsWith("!", StringComparison.Ordinal)))
         {
             HelperText.enabled = false;
             return;
         }
+
+        if (t.StartsWith("!", StringComparison.Ordinal)) t = "/" + t.Substring(1);
 
         string textCmd = t.Split(' ')[0];
 
@@ -129,14 +154,14 @@ internal static class CommandHelper
             {
                 string aliasCmd = a;
 
-                if (aliasCmd.Equals(textCmd))
+                if (aliasCmd.Equals(textCmd, StringComparison.OrdinalIgnoreCase))
                 {
                     v = cmd;
                     u = cmd;
                     break;
                 }
 
-                if (aliasCmd.StartsWith(textCmd))
+                if (aliasCmd.StartsWith(textCmd, StringComparison.OrdinalIgnoreCase))
                 {
                     u ??= cmd;
                 }
@@ -153,7 +178,7 @@ internal static class CommandHelper
 
         __instance.outputText.enabled = true;
 
-        if (v != null && textCmd.Equals(v.Name[0]))
+        if (v != null && v.Name.Any(alias => alias.Equals(textCmd, StringComparison.OrdinalIgnoreCase)))
         {
             HelperText.text = $"\n\n<size=80%><color=#FF0000>{v.Description}</color></size>";
         }

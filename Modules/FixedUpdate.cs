@@ -190,19 +190,16 @@ class FixedUpdateInGamePatch
                 {
                     __instance.cosmetics.nameText.text = $"<color={color}>{__instance.Data.PlayerName}</color>";
                 }
-                if ( !Main.DisableLobbyInfo.Value && __instance.cosmetics.nameText.text != $"<size=70%><color=#00ffff>Lv.{__instance.Data.PlayerLevel}</color> | <color=yellow>{AmongUsClient.Instance.GetClientFromCharacter(__instance).PlatformData.Platform}</size>\n<color={color}>{__instance.Data.PlayerName}</color>")
+                if (!Main.DisableLobbyInfo.Value && __instance.cosmetics.nameText.text != $"<size=60%><color=#00ffff>Lv.{__instance.Data.PlayerLevel + 1}</color> | <color=yellow>{Utils.ConvertPlatform(AmongUsClient.Instance.GetClientFromCharacter(__instance).PlatformData.Platform)}</size>\n<color={color}>{__instance.Data.PlayerName}</color>\n\n")
                 {
-                    __instance.cosmetics.nameText.text = $"<size=60%><color=#00ffff>Lv.{__instance.Data.PlayerLevel + 1}</color> | <color=yellow>{Utils.ConvertPlatform(AmongUsClient.Instance.GetClientFromCharacter(__instance).PlatformData.Platform)}</size>\n<color={color}>{__instance.Data.PlayerName}</color>";
+                    __instance.cosmetics.nameText.text = $"<size=60%><color=#00ffff>Lv.{__instance.Data.PlayerLevel + 1}</color> | <color=yellow>{Utils.ConvertPlatform(AmongUsClient.Instance.GetClientFromCharacter(__instance).PlatformData.Platform)}</size>\n<color={color}>{__instance.Data.PlayerName}</color>\n\n";
                 }
                 LastColors[__instance.PlayerId] = color;
             }
         }
-        if (Utils.InGame)
+        if (Utils.InGame && __instance.cosmetics.nameText.text != __instance.Data.PlayerName)
         {
-            if (__instance.cosmetics.nameText.text != __instance.Data.PlayerName)
-            {
-                __instance.cosmetics.nameText.text = __instance.Data.PlayerName;             
-            }
+            __instance.cosmetics.nameText.text = __instance.Data.PlayerName;
         }
 
         if (!AmongUsClient.Instance.AmHost) return;
@@ -256,7 +253,7 @@ class FixedUpdateInGamePatch
                 {
                     Main.GameTimer = 0f;
 
-                    Utils.ContinueEndGame((byte)GameOverReason.CrewmatesByVote);
+                    Utils.ContinueEndGame(GameOverReason.CrewmatesByVote);
                     Logger.Info($" Crewmates won because the game took longer than {Options.CrewAutoWinsGameAfter.GetInt()}s", "SNSManager");
                     NormalGameEndChecker.CheckWinnerText("SnSTimer");
                 }
@@ -280,7 +277,7 @@ class FixedUpdateInGamePatch
                 {
                     Main.GameTimer = 0f;
 
-                    Utils.ContinueEndGame((byte)GameOverReason.CrewmatesByVote);
+                    Utils.ContinueEndGame(GameOverReason.CrewmatesByVote);
                     Logger.Info($" Crewmates won because the game took longer than {Options.PNSCrewAutoWinsGameAfter.GetInt()}s", "PNSManager");
                     NormalGameEndChecker.CheckWinnerText("PnSTimer");
                 }

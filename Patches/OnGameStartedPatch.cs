@@ -18,6 +18,12 @@ internal class CoStartGamePatch
         Logger.Info($" Players: {PlayerControl.AllPlayerControls.Count}", "StartGame");
         Logger.Info($" Map: {(MapNames)GameOptionsManager.Instance.CurrentGameOptions.MapId}", "StartGame");
 
+        LobbyPlayerHistory.CaptureRoundPlayers();
+        foreach (PlayerControl player in PlayerControl.AllPlayerControls)
+        {
+            TurkishTextRainbow.CheckPlayerName(player);
+        }
+
         if (Main.GM.Value)
         {
             Logger.Info($" Game Master Enabled", "StartGame");      
@@ -36,13 +42,121 @@ class PlayerControlSetRolePatch
     public static readonly HashSet<byte> ProcessedPlayers = new();
     public static HashSet<byte> Seekers = new();
     public static HashSet<byte> manualSeekers = new();
+    public static readonly Dictionary<byte, RoleTypes> PendingRoleAssignments = new();
+    public static readonly Dictionary<RoleTypes, HashSet<byte>> ExclusiveRolePlayers = new();
+    public static int? DesiredImpostorCount;
     private static readonly System.Random rand = new System.Random();
+    private static readonly HashSet<byte> PlannedImpostorPlayers = new();
+    private static bool ImpostorPlanPrepared;
+
+    private static bool IsImpostorRole(RoleTypes roleType)
+    {
+        return roleType is RoleTypes.Impostor or RoleTypes.ImpostorGhost or RoleTypes.Shapeshifter or RoleTypes.Phantom or RoleTypes.Viper;
+    }
+
+    public static int GetQueuedImpostorCount() => PendingRoleAssignments.Count(assignment => IsImpostorRole(assignment.Value));
+
+    private static RoleTypes GetExclusiveFallbackRole(RoleTypes excludedRole)
+    {
+        RoleTypes[] crewRoles =
+        {
+            RoleTypes.Crewmate, RoleTypes.Scientist, RoleTypes.Engineer, RoleTypes.GuardianAngel, RoleTypes.Noisemaker,
+            RoleTypes.Tracker, RoleTypes.Detective, RoleTypes.Judge, RoleTypes.SpiritGuide
+        };
+        RoleTypes[] impostorRoles = { RoleTypes.Impostor, RoleTypes.Shapeshifter, RoleTypes.Phantom, RoleTypes.Viper };
+        RoleTypes[] candidates = IsImpostorRole(excludedRole) ? impostorRoles : crewRoles;
+
+        foreach (RoleTypes candidate in candidates)
+        {
+            if (candidate != excludedRole && !ExclusiveRolePlayers.ContainsKey(candidate)) return candidate;
+        }
+
+        return IsImpostorRole(excludedRole) ? RoleTypes.Crewmate : RoleTypes.Impostor;
+    }
+
+    private static RoleTypes GetAvailableImpostorRole(byte playerId)
+    {
+        RoleTypes[] candidates = { RoleTypes.Impostor, RoleTypes.Shapeshifter, RoleTypes.Phantom, RoleTypes.Viper };
+        foreach (RoleTypes candidate in candidates)
+        {
+            if (!ExclusiveRolePlayers.TryGetValue(candidate, out HashSet<byte> allowedPlayers) || allowedPlayers.Contains(playerId))
+            {
+                return candidate;
+            }
+        }
+
+        return RoleTypes.Impostor;
+    }
+
+    private static RoleTypes GetAvailableCrewmateRole()
+    {
+        RoleTypes[] candidates =
+        {
+            RoleTypes.Crewmate, RoleTypes.Scientist, RoleTypes.Engineer, RoleTypes.GuardianAngel, RoleTypes.Noisemaker,
+            RoleTypes.Tracker, RoleTypes.Detective, RoleTypes.Judge, RoleTypes.SpiritGuide
+        };
+        foreach (RoleTypes candidate in candidates)
+        {
+            if (!ExclusiveRolePlayers.ContainsKey(candidate)) return candidate;
+        }
+
+        return RoleTypes.Crewmate;
+    }
+
+    private static void PrepareImpostorPlan()
+    {
+        if (ImpostorPlanPrepared) return;
+        ImpostorPlanPrepared = true;
+        PlannedImpostorPlayers.Clear();
+
+        if (!DesiredImpostorCount.HasValue || Utils.isHideNSeek) return;
+
+        HashSet<byte> forcedImpostors = PendingRoleAssignments
+            .Where(assignment => IsImpostorRole(assignment.Value))
+            .Select(assignment => assignment.Key)
+            .ToHashSet();
+        PlannedImpostorPlayers.UnionWith(forcedImpostors);
+
+        int targetCount = Math.Max(DesiredImpostorCount.Value, forcedImpostors.Count);
+        List<PlayerControl> candidates = new();
+        foreach (PlayerControl player in PlayerControl.AllPlayerControls)
+        {
+            if (player == null || player.Data == null || PendingRoleAssignments.ContainsKey(player.PlayerId) || forcedImpostors.Contains(player.PlayerId)) continue;
+            if (Main.GM.Value && player == PlayerControl.LocalPlayer) continue;
+            candidates.Add(player);
+        }
+
+        for (int i = candidates.Count - 1; i > 0; i--)
+        {
+            int j = rand.Next(i + 1);
+            (candidates[i], candidates[j]) = (candidates[j], candidates[i]);
+        }
+
+        foreach (PlayerControl player in candidates)
+        {
+            if (PlannedImpostorPlayers.Count >= targetCount) break;
+            PlannedImpostorPlayers.Add(player.PlayerId);
+        }
+
+        Logger.Info($"Impostor roll: {forcedImpostors.Count} pre-assigned, {PlannedImpostorPlayers.Count - forcedImpostors.Count} randomly selected, target {targetCount}.", "RoleManaging");
+    }
 
     public static bool Prefix(PlayerControl __instance, ref RoleTypes roleType, ref bool canOverrideRole)
     {
+        if (__instance?.Data != null && roleType is RoleTypes.CrewmateGhost or RoleTypes.ImpostorGhost)
+        {
+            ChatCommandHelpers.RememberRoleBeforeDeath(__instance, __instance.Data.RoleType);
+        }
+
         if (!FirstAssign || !AmongUsClient.Instance.AmHost) return true;
 
         if (!ProcessedPlayers.Add(__instance.PlayerId)) return true;
+        PrepareImpostorPlan();
+
+        if (PendingRoleAssignments.ContainsKey(__instance.PlayerId))
+        {
+            ChatCommandHelpers.RememberOriginalRole(__instance, roleType);
+        }
 
         // canOverrideRole = false;
 
@@ -101,9 +215,47 @@ class PlayerControlSetRolePatch
             else roleType = RoleTypes.Crewmate;
         }
 
+        bool hasQueuedRole = PendingRoleAssignments.TryGetValue(__instance.PlayerId, out RoleTypes pendingRole);
+        if (hasQueuedRole)
+        {
+            roleType = pendingRole;
+        }
+        else
+        {
+            foreach (var roleGroup in ExclusiveRolePlayers)
+            {
+                if (roleType == roleGroup.Key && !roleGroup.Value.Contains(__instance.PlayerId))
+                {
+                    roleType = GetExclusiveFallbackRole(roleGroup.Key);
+                    break;
+                }
+
+            }
+        }
+
+        if (hasQueuedRole)
+        {
+            PendingRoleAssignments.Remove(__instance.PlayerId);
+            Logger.Info($" {__instance.Data.PlayerName} assigned queued role {pendingRole}", "RoleManaging");
+        }
+        else if (DesiredImpostorCount.HasValue && !Utils.isHideNSeek)
+        {
+            if (PlannedImpostorPlayers.Contains(__instance.PlayerId))
+            {
+                roleType = GetAvailableImpostorRole(__instance.PlayerId);
+            }
+            else if (IsImpostorRole(roleType))
+            {
+                roleType = GetAvailableCrewmateRole();
+            }
+        }
+
         if (ProcessedPlayers.Count >= PlayerControl.AllPlayerControls.Count)
         {
             Seekers.Clear();
+            ExclusiveRolePlayers.Clear();
+            PlannedImpostorPlayers.Clear();
+            ImpostorPlanPrepared = false;
             FirstAssign = false;
             Logger.Info(" PCSRP successful", "RoleManaging");
         }

@@ -18,6 +18,9 @@ internal static class OnGameJoinedPatch
 
         if (!AmongUsClient.Instance.AmHost) return;
 
+        LobbyPlayerHistory.BeginLobby();
+        TurkishTextRainbow.ResetForLobby();
+
         WaitingForChat = false;
         AutoStartCheck = false;
 
@@ -99,6 +102,9 @@ class OnPlayerJoinedPatch
 
         if (AmongUsClient.Instance.AmHost)
         {
+            TurkishTextRainbow.CheckJoinedClient(Client);
+            LobbyPlayerHistory.NotifyReturningPlayerJoined(Client);
+            LobbyPresenceNotifier.NotifyJoined(Client);
             BanManager.CheckBanPlayer(Client);
             BanManager.IsPlayerInDenyName(Client, Client.PlayerName);
             Logger.Info($" {Client.PlayerName} has access level {Utils.CheckAccessLevel(Client.FriendCode)}", "AccessCheck");
@@ -143,6 +149,7 @@ class OnPlayerLeftPatch
     {
         if (!AmongUsClient.Instance.AmHost) return;
         Logger.Info($" {client.PlayerName} left the game", "OnPlayerLeft");
+        KickPlayerPatch.WasRecentlyKicked(client);
 
         if (!Utils.InGame) return;
         PlayerControlCompleteTaskPatch.CalculateTaskWin();

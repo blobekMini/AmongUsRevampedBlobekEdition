@@ -93,6 +93,7 @@ namespace AmongUsRevamped
         public static OptionItem DeniedWordsToKick;
         public static OptionItem DeniedWordsAsBan;
         public static OptionItem DeniedWordsStrength;
+        public static OptionItem TurkishTextRainbow;
 
         public static OptionItem TabGroupAutoKickStart;
         public static OptionItem AutoKickStart;
@@ -103,6 +104,8 @@ namespace AmongUsRevamped
         public static OptionItem TabGroupAutomation;
         public static OptionItem AutoSendGameInfo;
         public static OptionItem AutoRejoinLobby;
+        public static OptionItem NotifyTrackedPlayers;
+        public static OptionItem NotifyReturningPlayers;
         public static OptionItem EnableJoinMessages;
         public static OptionItem MessagePerPlayerNum;
         public static OptionItem AutomaticMapPoll;
@@ -116,6 +119,8 @@ namespace AmongUsRevamped
         public static OptionItem PlayerAutoStart;
         public static OptionItem Rehost;
         public static OptionItem Public;
+        public static OptionItem DisableMeetings;
+        public static OptionItem DisableBodyReports;
 
         public static OptionItem TabGroupAfk;
         public static OptionItem EnableAfkDetection;
@@ -159,6 +164,12 @@ namespace AmongUsRevamped
 
         public static OptionItem TabGroupAccess;
         public static OptionItem SlashColorCmd;
+        public static OptionItem SlashUserColorCmd;
+        public static OptionItem SlashGiveCmd;
+        public static OptionItem SlashResetCmd;
+        public static OptionItem SlashImpCountCmd;
+        public static OptionItem SlashVoteOutCmd;
+        public static OptionItem SlashReviveCmd;
         public static OptionItem SlashRolesAndGamemodeCmd;
         public static OptionItem SlashLastGameCmd;
         public static OptionItem SlashMapAndSeekerCmd;
@@ -166,6 +177,10 @@ namespace AmongUsRevamped
         public static OptionItem SlashBanCmd;
         public static OptionItem SlashEndMeetingCmd;
         public static OptionItem SlashStartAndEndGameCmd;
+        public static OptionItem SlashUtilityCmd;
+        public static OptionItem SlashAdminListCmd;
+        public static OptionItem SlashKillCmd;
+        public static OptionItem SlashSettingsCmd;
         
         //Gameplay
         public static OptionItem TabGroupSabotages;
@@ -391,6 +406,9 @@ namespace AmongUsRevamped
                 .SetColor(Color.yellow)
                 .SetHeader(true);
 
+            DisableMeetings = BooleanOptionItem.Create(60568, Translator.Get("disableMeetings"), false, TabGroup.SystemSettings, false);
+            DisableBodyReports = BooleanOptionItem.Create(60569, Translator.Get("disableBodyReports"), false, TabGroup.SystemSettings, false);
+
             TabGroupLevelKick = TextOptionItem.Create(60048, Translator.Get("tabGroupLevelKick"), TabGroup.ModerationSettings)
                 .SetColor(Color.red);
             EnableKickLowLevelPlayer = BooleanOptionItem.Create(60049, Translator.Get("enableKickLowLevelPlayer"), false, TabGroup.ModerationSettings, false);
@@ -424,6 +442,7 @@ namespace AmongUsRevamped
                 .SetValueFormat(OptionFormat.Level);
             DeniedWordsStrength = BooleanOptionItem.Create(60086, Translator.Get("autoKickStartStrength"), false, TabGroup.ModerationSettings, false)
                 .SetParent(EnableDeniedWords);
+            TurkishTextRainbow = BooleanOptionItem.Create(60160, "Auto-rainbow on Turkish text (cosmetic)", false, TabGroup.ModerationSettings, false);
 
             TabGroupAutoKickStart = TextOptionItem.Create(600122, Translator.Get("tabGroupAutoKickStart"), TabGroup.ModerationSettings)
                 .SetColor(Color.red);
@@ -446,11 +465,23 @@ namespace AmongUsRevamped
             SlashBanCmd = StringOptionItem.Create(60133, Translator.Get("slashBanCmd"), accessLevels, 2, TabGroup.ModerationSettings, false);
             SlashEndMeetingCmd = StringOptionItem.Create(60134, Translator.Get("slashEndMeetingCmd"), accessLevels, 3, TabGroup.ModerationSettings, false);
             SlashStartAndEndGameCmd = StringOptionItem.Create(60135, Translator.Get("slashStartAndEndGameCmd"), accessLevels, 3, TabGroup.ModerationSettings, false);
+            SlashUserColorCmd = StringOptionItem.Create(60136, Translator.Get("slashUserColorCmd"), accessLevels, 1, TabGroup.ModerationSettings, false);
+            SlashGiveCmd = StringOptionItem.Create(60137, Translator.Get("slashGiveCmd"), accessLevels, 1, TabGroup.ModerationSettings, false);
+            SlashResetCmd = StringOptionItem.Create(60138, Translator.Get("slashResetCmd"), accessLevels, 1, TabGroup.ModerationSettings, false);
+            SlashImpCountCmd = StringOptionItem.Create(60139, Translator.Get("slashImpCountCmd"), accessLevels, 1, TabGroup.ModerationSettings, false);
+            SlashVoteOutCmd = SlashEndMeetingCmd;
+            SlashReviveCmd = StringOptionItem.Create(60141, Translator.Get("slashReviveCmd"), accessLevels, 0, TabGroup.ModerationSettings, false);
+            SlashUtilityCmd = StringOptionItem.Create(60142, Translator.Get("slashUtilityCmd"), accessLevels, 0, TabGroup.ModerationSettings, false);
+            SlashAdminListCmd = StringOptionItem.Create(60143, Translator.Get("slashAdminListCmd"), accessLevels, 3, TabGroup.ModerationSettings, false);
+            SlashKillCmd = StringOptionItem.Create(60144, Translator.Get("slashKillCmd"), accessLevels, 1, TabGroup.ModerationSettings, false);
+            SlashSettingsCmd = StringOptionItem.Create(60145, Translator.Get("slashSettingsCmd"), accessLevels, 3, TabGroup.ModerationSettings, false);
 
             TabGroupAutomation = TextOptionItem.Create(60149, Translator.Get("tabGroupAutomation"), TabGroup.SystemSettings)
                 .SetColor(Color.yellow);
             AutoSendGameInfo = BooleanOptionItem.Create(60150, Translator.Get("autoSendGameInfo"), true, TabGroup.SystemSettings, false);
             AutoRejoinLobby = BooleanOptionItem.Create(60151, Translator.Get("autoRejoinLobby"), false, TabGroup.SystemSettings, false);
+            NotifyTrackedPlayers = BooleanOptionItem.Create(60158, Translator.Get("notifyTrackedPlayers"), true, TabGroup.SystemSettings, false);
+            NotifyReturningPlayers = BooleanOptionItem.Create(60159, Translator.Get("notifyReturningPlayers"), true, TabGroup.SystemSettings, false);
             EnableJoinMessages = BooleanOptionItem.Create(60152, Translator.Get("enableJoinMessages"), true, TabGroup.SystemSettings, false);
             MessagePerPlayerNum = IntegerOptionItem.Create(60153, Translator.Get("messagePerPlayerNum"), new(1, 15, 1), 5, TabGroup.SystemSettings, false)
                 .SetParent(EnableJoinMessages);

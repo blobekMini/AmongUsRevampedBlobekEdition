@@ -39,7 +39,6 @@ public static class Utils
     public static bool IsFreePlay => AmongUsClient.Instance.NetworkMode == NetworkModes.FreePlay;
     public static bool IsMeeting => InGame && (MeetingHud.Instance);
     public static bool HandlingGameEnd;
-    public static byte CustomGameOverReason;
     public static bool CanCallMeetings;
     public static bool HasMurdered;
 
@@ -202,6 +201,7 @@ public static class Utils
     {
         Logger.Info(" Cleared Leftover Data", "Utils");
 
+        RainbowColorCycle.StopAll();
         RpcSetTasksPatch.GlobalTaskIds = null;
         HandlingGameEnd = false;
         OnGameJoinedPatch.AutoStartCheck = false;
@@ -388,6 +388,12 @@ public static class Utils
 
     public static void ChatCommand(ChatController __instance, string msg, string msg2, bool multi)
     {
+        if (LocalCommandPanel.IsCapturingCommandOutput)
+        {
+            LocalCommandPanel.CaptureCommandOutput(string.IsNullOrEmpty(msg2) ? msg : $"{msg}{Environment.NewLine}{msg2}");
+            return;
+        }
+
         if (OnGameJoinedPatch.WaitingForChat) return;
 
         OnGameJoinedPatch.WaitingForChat = true;
@@ -423,6 +429,15 @@ public static class Utils
         if (OnGameJoinedPatch.WaitingForChat) return;
 
         OnGameJoinedPatch.WaitingForChat = true;
+
+        if (SendChatPatch.IsHandlingRemotePublicCommand)
+        {
+            Logger.Info($"Suppressed public response to a remote command: {msg}", "RemoteCommandFeedback");
+            if (multi && !string.IsNullOrWhiteSpace(msg2))
+                Logger.Info($"Suppressed additional response to a remote command: {msg2}", "RemoteCommandFeedback");
+            OnGameJoinedPatch.WaitingForChat = false;
+            return;
+        }
 
         new LateTask(() =>
         {
@@ -465,7 +480,7 @@ public static class Utils
             new LateTask(() =>
             {
                 ContinueEndGame(GameOverReason.ImpostorsByVote);
-            }, 1f, "CustomWinnerEndGame"); 
+            }, 1f, "CustomWinnerEndGame");
         }
 
         if (winnerType == 1)
@@ -484,8 +499,8 @@ public static class Utils
             new LateTask(() =>
             {
                 ContinueEndGame(GameOverReason.ImpostorsByVote);
-            }, 1f, "CustomWinnerEndGame"); 
-        }    
+            }, 1f, "CustomWinnerEndGame");
+        }
     }
 
     public static void ContinueEndGame(GameOverReason gameOverReason)
