@@ -8,6 +8,7 @@ using BepInEx;
 using BepInEx.Configuration;
 using BepInEx.Unity.IL2CPP;
 using System;
+using System.Reflection;
 using UnityEngine;
 
 namespace AmongUsRevamped;
@@ -54,7 +55,7 @@ public partial class Main : BasePlugin
 
     public static bool HasArgumentException;
     public static string CredentialsText;
-    public static string ModVersion => $"v{typeof(Main).Assembly.GetName().Version?.ToString(4) ?? "2.3.0.0"}";
+    public static string ModVersion => $"v{typeof(Main).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "2.3.0.1.30"}";
     public static bool CommandPreviewsEnabled { get; private set; }
 
     public static void SetHostModVersion(string version)
