@@ -29,6 +29,7 @@ internal static class InGameCommandCompletion
                 .Concat(players)
                 .Concat(colors)
                 .Concat(colors.Select(color => "!color:" + color))
+                .Concat(new[] { "!color:gay", "!color:rainbow", "imp", "crew", "sci", "eng", "ss", "det", "nana", "noise", "track", "ph" })
                 .Concat(roles)
                 .Concat(new[]
                 {

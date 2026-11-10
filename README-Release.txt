@@ -1,5 +1,12 @@
 Among Us Revamped Blobek Edition - Release v@VERSION@
 
+Download the latest Blobek Edition release:
+https://github.com/blobekMini/AmongUsRevampedBlobekEdition/releases/latest
+
+# Changelog
+@CHANGELOG@
+
+# Install
 INSTALL FROM EITHER ZIP (FULL BepInEx PACKAGE)
 1. Close Among Us before installing.
 2. Locate the Among Us game folder:
@@ -15,6 +22,20 @@ INSTALL FROM EITHER ZIP (FULL BepInEx PACKAGE)
 INSTALL THE DLL ONLY (BepInEx ALREADY INSTALLED)
 Copy AmongUsRevamped.dll into the game's BepInEx/plugins folder, replacing any
 older AmongUsRevamped.dll. Do not copy the DLL into the game root.
+
+KNOWN ISSUE
+The F10 in-game command console currently does not work as intended. Use chat
+commands where possible.
+
+EXPERIMENTAL / NOT FULLY TESTED
+The following recently added features have not been thoroughly tested in live
+games. They may be buggy, behave unexpectedly, or fail in some versions or
+game states. /tp and /teleport, and /impregnate, are currently marked broken;
+do not rely on them. Other untested features include automatic Cosmicube switching
+and deactivation; friend nicknames and folders in the social menu; startup
+GitHub release checks and the update popup; returning-player notifications
+from AUR-DATA/LobbyPlayerHistory.txt; and tracked-player notifications from
+AUR-DATA/notifypresence.txt. Use these features with caution.
 
 VERSION NUMBERING
 The version format is x.x.x.y.z:

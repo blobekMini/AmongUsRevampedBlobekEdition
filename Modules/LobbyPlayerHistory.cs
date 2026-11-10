@@ -51,22 +51,37 @@ internal static class LobbyPlayerHistory
 
     public static void NotifyReturningPlayerJoined(InnerNet.ClientData client)
     {
-        if (client == null || AmongUsClient.Instance == null || !AmongUsClient.Instance.AmHost ||
-            !Options.NotifyReturningPlayers.GetBool()) return;
+        if (client == null || AmongUsClient.Instance == null || !AmongUsClient.Instance.AmHost) return;
 
         string friendCode = (client.FriendCode ?? string.Empty).Trim();
-        if (string.IsNullOrWhiteSpace(friendCode)) return;
+        if (string.IsNullOrWhiteSpace(friendCode) || friendCode.Contains(',') || friendCode.Contains(';')) return;
 
         lock (Sync)
         {
             LoadIfNeeded();
             PruneExpiredLobbies();
-            if (currentLobbyId <= 0 || !Players.TryGetValue(friendCode, out PlayerRecord record) ||
-                !record.LobbyIds.Any(lobbyId => lobbyId != currentLobbyId) ||
+            if (currentLobbyId <= 0) return;
+
+            bool hasPreviousLobby = Players.TryGetValue(friendCode, out PlayerRecord record) &&
+                record.LobbyIds.Any(lobbyId => lobbyId != currentLobbyId);
+            string name = CleanPlayerName(client.PlayerName);
+            if (record == null)
+            {
+                record = new PlayerRecord { FriendCode = friendCode, PlayerName = name };
+                Players.Add(friendCode, record);
+            }
+            else
+            {
+                record.PlayerName = name;
+            }
+
+            if (record.LobbyIds.Add(currentLobbyId))
+                AppendLine($"{friendCode},{name};");
+
+            if (!hasPreviousLobby || !Options.NotifyReturningPlayers.GetBool() ||
                 !NotifiedReturningPlayersThisLobby.Add(friendCode)) return;
 
-            string name = CleanPlayerName(client.PlayerName);
-            string message = $"{name} played a round with you before and has returned.";
+            string message = $"{name} has been in one of your lobbies before and has returned.";
             Logger.Info(message, "LobbyPlayerHistoryMatch");
             InGameCommandConsole.ShowNotificationPopup("Returning player", message);
         }

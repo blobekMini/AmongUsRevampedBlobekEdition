@@ -65,6 +65,7 @@ namespace AmongUsRevamped
             credentials.alignment = TextAlignmentOptions.Right;
             credentials.transform.position = new Vector3(-4.1f, -2.68f, -2f);
             credentials.fontSize = credentials.fontSizeMax = credentials.fontSizeMin = 2f;
+            MainMenuManagerStartPatch.SetVersionLabel(credentials);
 
             ErrorText.Create(__instance.text);
             if (Main.HasArgumentException && ErrorText.Instance != null)
@@ -180,11 +181,19 @@ namespace AmongUsRevamped
     public static class MainMenuManagerStartPatch
     {
         private static PassiveButton template;
-        private static PassiveButton discordButton;
+        private static PassiveButton websiteButton;
         private static PassiveButton gitHubButton;
         private static PassiveButton latestButton;
         private static PassiveButton animationSceneButton;
         private static Transform buttonParent;
+        private static TMP_Text versionLabel;
+
+        public static void SetVersionLabel(TMP_Text label)
+        {
+            versionLabel = label;
+            PositionVersionLabel();
+        }
+
         public static void Postfix(MainMenuManager __instance)
         {
             if (__instance == null) return;
@@ -192,16 +201,16 @@ namespace AmongUsRevamped
             if (template == null) return;
 
             if (buttonParent == null) buttonParent = template.transform.parent;
-            if (discordButton == null)
+            if (websiteButton == null)
             {
-                discordButton = CreateButton(
+                websiteButton = CreateButton(
                     __instance,
-                    "DiscordButton",
-                    new(2.3f, 4.05f, 1f),
-                    new(88, 101, 242, byte.MaxValue),
-                    new(148, 161, byte.MaxValue, byte.MaxValue),
-                    () => Application.OpenURL("https://discord.gg/83Zhzhyhya"),
-                    "Discord");
+                    "WebsiteButton",
+                    new(2.6f, 4.05f, 1f),
+                    new(40, 120, 200, byte.MaxValue),
+                    new(80, 160, 240, byte.MaxValue),
+                    () => Application.OpenURL("https://blobek.net/aurbe"),
+                    "Website");
             }
 
             if (gitHubButton == null)
@@ -212,7 +221,7 @@ namespace AmongUsRevamped
                     new(4.0f, 4.05f, 1f),
                     new(153, 153, 153, byte.MaxValue),
                     new(209, 209, 209, byte.MaxValue),
-                    () => Application.OpenURL("https://github.com/ApeMV/AmongUsRevamped"),
+                    () => Application.OpenURL("https://github.com/blobekMini/AmongUsRevampedBlobekEdition"),
                     "GitHub");
             }
 
@@ -224,9 +233,11 @@ namespace AmongUsRevamped
                     new(5.7f, 4.05f, 1f),
                     new(255, 215, 0, byte.MaxValue),
                     new(255, 255, 30, byte.MaxValue),
-                    () => Application.OpenURL("https://github.com/ApeMV/AmongUsRevamped/releases/latest"),
+                        () => Application.OpenURL("https://github.com/blobekMini/AmongUsRevampedBlobekEdition/releases/latest"),
                     "Latest");
             }
+
+                    PositionVersionLabel();
 
             if (animationSceneButton == null)
             {
@@ -336,7 +347,7 @@ namespace AmongUsRevamped
             button.name = name;
 
             button.transform.localPosition = localPosition;
-            if (name == "GitHubButton" || name == "DiscordButton" || name == "LatestButton")
+            if (name == "GitHubButton" || name == "WebsiteButton" || name == "LatestButton")
             {
                 button.transform.localScale = new Vector3(0.8f, 1f, 1f);
             }
@@ -368,6 +379,22 @@ namespace AmongUsRevamped
 
             button.gameObject.SetActive(true);
             return button;
+        }
+
+        private static void PositionVersionLabel()
+        {
+            if (versionLabel == null) return;
+            Transform parent = GameObject.Find("MainUI/AspectScaler/LeftPanel/Main Buttons")?.transform;
+            if (parent == null) return;
+
+            versionLabel.transform.SetParent(parent, false);
+            versionLabel.transform.localPosition = new Vector3(4f, 3.25f, -2f);
+            versionLabel.transform.localScale = Vector3.one;
+            AspectPosition aspect = versionLabel.GetComponent<AspectPosition>();
+            if (aspect != null) aspect.enabled = false;
+            versionLabel.alignment = TextAlignmentOptions.Center;
+            versionLabel.enableWordWrapping = false;
+            versionLabel.fontSize = versionLabel.fontSizeMax = versionLabel.fontSizeMin = 1.35f;
         }
     }
 

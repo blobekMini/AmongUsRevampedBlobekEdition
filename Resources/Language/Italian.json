@@ -300,7 +300,7 @@
   "seekerDesc": "Aggiunge il giocatore come cercatore in nascondino. ",
   "seekersDesc": "Mostra tutti i cercatori selezionati manualmente. ",
   "clearSeekerDesc": "Pulisce l'elenco di tutti i cercatori selezionati manualmente. ",
-  "slashEndMeetingCmd": "Chi può usare /em, /endmeeting, /sm e /skipmeeting",
+  "slashEndMeetingCmd": "Chi può usare /em, /endmeeting, /sm, /skipmeeting e /setvotes",
   "gameMasterWarning": "Osserverai le partite mentre la modalità spettatore è attiva. ATTENZIONE: L'assegnazione dei ruoli potrebbe essere errata se questa impostazione è attivata. ",
   "startWordsWelcome": "# In questo file puoi creare parole che serviranno a 'Espellere i Giocatori Che Dicono Start'. \n# 'Modalità di rilevamento rigorosa' OFF = I messaggi devono corrispondere perfettamente alle parole specificate. 'Modalità di rilevamento rigorosa' ON = I messaggi richiedono solo determinate parole. \n# Puoi anche aggiungere parole non correlate, che verranno rilevate solo nella lobby. \n\nstart\nbegin\ncommence\nstart\ninizia\n",
   "gameMasterWarningTwo": "ATTENZIONE: Modalità Game Master Attivata",

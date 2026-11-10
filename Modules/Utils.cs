@@ -201,6 +201,7 @@ public static class Utils
     {
         Logger.Info(" Cleared Leftover Data", "Utils");
 
+        ImpregnatePlayerSequence.CancelActive();
         RainbowColorCycle.StopAll();
         RpcSetTasksPatch.GlobalTaskIds = null;
         HandlingGameEnd = false;

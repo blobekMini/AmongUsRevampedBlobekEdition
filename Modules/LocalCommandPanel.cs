@@ -15,11 +15,11 @@ internal static class LocalCommandPanel
         "/revive", "/tm", "/tiemeeting", "/impcount", "/setimp", "/vip", "/moderator", "/admin",
         "/removevip", "/removemoderator", "/removeadmin", "/col", "/color", "/colour", "/ucol",
         "/ucolor", "/ucolour", "/give", "/set", "/add", "/rolereset", "/playerreset", "/voteout",
-        "/cvoteout", "/kick", "/ban", "/ckick", "/cban", "/seeker", "/seekers", "/clearseeker",
+        "/cvoteout", "/setvotes", "/kick", "/ban", "/ckick", "/cban", "/seeker", "/seekers", "/clearseeker",
         "/mapvote", "/allmapvote", "/gmvote", "/lastgame", "/l", "/aur", "/socials", "/0kc",
         "/0killcooldown", "/sns", "/shiftandseek", "/sns2", "/shiftandseek2", "/sr", "/speedrun",
         "/pns", "/poofandseek", "/r", "/roles", "/t", "/vote", "/copyfit", "/kill", "/colout",
-        "/ucolout", "/whitelist", "/settings", "/bind"
+        "/ucolout", "/whitelist", "/settings", "/bind", "/tp", "/teleport", "/impregnate"
     };
 
     private static readonly Dictionary<string, string[]> ArgumentTypes = new(StringComparer.OrdinalIgnoreCase)
@@ -32,6 +32,9 @@ internal static class LocalCommandPanel
         ["/copyfit"] = new[] { "sourcePlayer", "targetPlayers" }, ["/rolereset"] = new[] { "role" },
         ["/impcount"] = new[] { "count" }, ["/setimp"] = new[] { "count" },
         ["/cvoteout"] = new[] { "color" }, ["/ckick"] = new[] { "color" }, ["/cban"] = new[] { "color" },
+        ["/setvotes"] = new[] { "voteTarget", "count" },
+        ["/tp"] = new[] { "targetPlayer", "room" }, ["/teleport"] = new[] { "targetPlayer", "room" },
+            ["/impregnate"] = new[] { "targetPlayer", "targetPlayer", "targetPlayer" },
         ["/col"] = new[] { "color" }, ["/color"] = new[] { "color" }, ["/colour"] = new[] { "color" }, ["/colout"] = new[] { "color" },
         ["/ucol"] = new[] { "color", "targetPlayers" }, ["/ucolor"] = new[] { "color", "targetPlayers" },
         ["/ucolour"] = new[] { "color", "targetPlayers" }, ["/ucolout"] = new[] { "color", "targetPlayers" },
@@ -42,11 +45,14 @@ internal static class LocalCommandPanel
     private static bool captureCommandOutput;
     private static string capturedCommandOutput;
     private static bool privateCommandDispatch;
+    private static bool consoleCommandDispatch;
 
     public static bool IsCapturingCommandOutput => captureCommandOutput;
     public static bool IsPrivateCommandDispatch => privateCommandDispatch;
+    public static bool IsConsoleCommandDispatch => consoleCommandDispatch;
 
     public static void SetPrivateCommandDispatch(bool enabled) => privateCommandDispatch = enabled;
+    public static void SetConsoleCommandDispatch(bool enabled) => consoleCommandDispatch = enabled;
 
     public static bool TryBeginCommandOutputCapture()
     {
@@ -94,6 +100,7 @@ internal static class LocalCommandPanel
         captureCommandOutput = true;
         try
         {
+            SetConsoleCommandDispatch(true);
             chat.freeChatField.textArea.SetText(command);
             chat.SendChat();
             return capturedCommandOutput ?? string.Empty;
@@ -105,6 +112,7 @@ internal static class LocalCommandPanel
         }
         finally
         {
+            SetConsoleCommandDispatch(false);
             captureCommandOutput = false;
             chat.freeChatField.textArea.SetText(previousChatText ?? string.Empty);
         }
@@ -138,7 +146,8 @@ internal static class LocalCommandPanel
         "/col" or "/color" or "/colour" or "/colout" or "/ucol" or "/ucolor" or "/ucolour" or "/ucolout" or "/copyfit" => "Appearance",
         "/impcount" or "/setimp" or "/mapvote" or "/allmapvote" or "/gmvote" or "/0kc" or "/0killcooldown" or
         "/sns" or "/shiftandseek" or "/sns2" or "/sr" or "/speedrun" or "/pns" or "/poofandseek" or "/vote" or "/t" => "Game Setup",
-        "/eg" or "/endgame" or "/em" or "/endmeeting" or "/sm" or "/skip" or "/skipmeeting" or "/revive" or "/kill" or "/tm" or "/tiemeeting" => "Game Control",
+        "/eg" or "/endgame" or "/em" or "/endmeeting" or "/sm" or "/skip" or "/skipmeeting" or "/revive" or "/kill" or "/tm" or "/tiemeeting" or "/setvotes" or "/tp" or "/teleport" => "Game Control",
+            "/eg" or "/endgame" or "/em" or "/endmeeting" or "/sm" or "/skip" or "/skipmeeting" or "/revive" or "/kill" or "/tm" or "/tiemeeting" or "/setvotes" or "/tp" or "/teleport" or "/impregnate" => "Game Control",
         "/private" or "/public" or "/s" or "/start" => "Lobby",
         "/settings" => "Game Setup",
         _ => "Other"
@@ -151,6 +160,9 @@ internal static class LocalCommandPanel
         "/bind" => "/bind 'ucolor gay ;' 'make ; gay' ;:!color:;",
         "/whitelist" => "/whitelist add PlayerName (or: /whitelist remove PlayerName)",
         "/copyfit" => "/copyfit SourcePlayer PlayerOne,PlayerTwo",
+        "/setvotes" => "/setvotes @all 2",
+        "/tp" or "/teleport" => $"{command} PlayerName !room:security",
+            "/impregnate" => "/impregnate PlayerOne PlayerTwo PlayerThree",
         "/revive" => "/revive PlayerName or /revive @all",
         "/tm" or "/tiemeeting" => command,
         "/give" => "/give scientist @all",
@@ -208,6 +220,7 @@ internal static class LocalCommandPanel
         return command switch
         {
             "/page" => "Show a saved output page using its original command.",
+            "/setvotes" => "Set the vote weight of living player(s) for the current meeting (host only).",
             "/copyfit" => "Copy the source player's outfit to one target player.",
             "/settings" => "Show or change supported normal-mode game settings in the lobby or during a game.",
             "/bind" => "Create a host-local text trigger for a supported private command.",

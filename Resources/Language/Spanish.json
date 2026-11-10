@@ -72,7 +72,7 @@
   "slashLastGameCmd": "Quién puede usar /l y /aur",
   "slashKickCmd": "Quién puede usar /kick y /ckick",
   "slashBanCmd": "Quién puede usar /ban y /cban",
-  "slashEndMeetingCmd": "Quién puede usar /em, /endmeeting, /sm y /skipmeeting",
+  "slashEndMeetingCmd": "Quién puede usar /em, /endmeeting, /sm, /skipmeeting y /setvotes",
   "slashMapAndSeekerCmd": "Quién puede usar /seeker y /mapvote",
   "slashStartAndEndGameCmd": "Quién puede usar /startgame y /endgame",
   "tabGroupCrewmate": "Roles de tripulante",

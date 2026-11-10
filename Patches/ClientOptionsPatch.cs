@@ -27,6 +27,7 @@ namespace AmongUsRevamped
         private static ClientOptionItem PreviewRoles;
         private static ClientOptionItem PreviewDevices;
         private static ClientOptionItem PreviewLevels;
+    private static ClientOptionItem AutoSwitchCosmicube;
 
         public static void Postfix(OptionsMenuBehaviour __instance)
         {
@@ -109,6 +110,13 @@ namespace AmongUsRevamped
 
             if (PreviewLevels == null || PreviewLevels.ToggleButton == null)
                 PreviewLevels = ClientOptionItem.Create(Translator.Get("previewLevels"), Main.PreviewLevels, __instance, PlayerPreviewLabels.Refresh);
+
+            if (AutoSwitchCosmicube == null || AutoSwitchCosmicube.ToggleButton == null)
+                AutoSwitchCosmicube = ClientOptionItem.Create(
+                    "Automatically switch Cosmicubes when fully funded",
+                    Main.AutoSwitchCosmicube,
+                    __instance,
+                    CosmicubeAutoSelector.ScheduleEvaluation);
 
         }
     }

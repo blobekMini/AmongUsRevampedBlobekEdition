@@ -1,4 +1,7 @@
-﻿using UnityEngine;
+﻿using System;
+using System.Collections.Generic;
+using System.Reflection;
+using UnityEngine;
 
 namespace AmongUsRevamped;
 
@@ -65,6 +68,8 @@ class MeetingHudStartPatch
     {
         if (!AmongUsClient.Instance.AmHost) return;
 
+        MeetingVoteWeights.Clear();
+
         foreach (var playerState in __instance.playerStates)
         {
             PlayerControl player = null;
@@ -123,5 +128,74 @@ class MeetingHudStartPatch
                 __result = false;
             }
         }
+    }
+}
+
+internal static class MeetingVoteWeights
+{
+    private static readonly Dictionary<byte, int> VoteCounts = new();
+
+    public static void Set(byte playerId, int count) => VoteCounts[playerId] = count;
+
+    public static bool TryGet(byte playerId, out int count) => VoteCounts.TryGetValue(playerId, out count);
+
+    public static void Clear() => VoteCounts.Clear();
+
+    public static void Apply(MeetingHud meeting, object votes)
+    {
+        if (AmongUsClient.Instance == null || !AmongUsClient.Instance.AmHost || meeting == null || votes == null || VoteCounts.Count == 0)
+            return;
+
+        Type dictionaryType = votes.GetType();
+        MethodInfo containsKey = dictionaryType.GetMethod("ContainsKey", new[] { typeof(byte) });
+        PropertyInfo itemProperty = dictionaryType.GetProperty("Item");
+        if (containsKey == null || itemProperty == null) return;
+
+        foreach (var voter in meeting.playerStates)
+        {
+            if (voter == null || !voter.DidVote || voter.VotedForId == byte.MaxValue ||
+                !TryGet(voter.PlayerId, out int desiredVotes)) continue;
+
+            byte targetId = (byte)voter.VotedForId;
+            object[] key = { targetId };
+            int currentVotes = (bool)containsKey.Invoke(votes, key)
+                ? Convert.ToInt32(itemProperty.GetValue(votes, key))
+                : 1;
+            itemProperty.SetValue(votes, currentVotes + desiredVotes - 1, key);
+        }
+    }
+}
+
+[HarmonyPatch(typeof(MeetingHud), nameof(MeetingHud.CalculateVotes))]
+internal static class MeetingHudCalculateVotesPatch
+{
+    public static void Postfix(MeetingHud __instance, object __result)
+    {
+        try
+        {
+            MeetingVoteWeights.Apply(__instance, __result);
+        }
+        catch (Exception ex)
+        {
+            Logger.Exception(ex, "MeetingVoteWeights");
+        }
+    }
+}
+
+[HarmonyPatch(typeof(MeetingHud), nameof(MeetingHud.RpcVotingComplete))]
+internal static class MeetingHudVotingCompletePatch
+{
+    public static void Postfix()
+    {
+        MeetingVoteWeights.Clear();
+    }
+}
+
+[HarmonyPatch(typeof(MeetingHud), nameof(MeetingHud.RpcClose))]
+internal static class MeetingHudClosePatch
+{
+    public static void Postfix()
+    {
+        MeetingVoteWeights.Clear();
     }
 }

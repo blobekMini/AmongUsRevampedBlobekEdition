@@ -48,6 +48,8 @@ public partial class Main : BasePlugin
     public static ConfigEntry<bool> PreviewRoles { get; private set; }
     public static ConfigEntry<bool> PreviewDevices { get; private set; }
     public static ConfigEntry<bool> PreviewLevels { get; private set; }
+    public static ConfigEntry<bool> AutoSwitchCosmicube { get; private set; }
+    public static ConfigEntry<string> UpdateCheckSnoozeUntil { get; private set; }
 
     public static NormalGameOptionsV12 NormalOptions => GameOptionsManager.Instance != null ? GameOptionsManager.Instance.currentNormalGameOptions : null;
     public static HideNSeekGameOptionsV12 HideNSeekOptions => GameOptionsManager.Instance != null ? GameOptionsManager.Instance.currentHideNSeekGameOptions : null;
@@ -106,6 +108,8 @@ public partial class Main : BasePlugin
         Preset5 = Config.Bind("Preset Name Options", "Preset5", "Preset 5");
 
         AutoStart = Config.Bind("Client Options", "Auto Start", false);
+            AutoSwitchCosmicube = Config.Bind("Client Options", "Automatically switch Cosmicubes when fully funded", false);
+            UpdateCheckSnoozeUntil = Config.Bind("Client Options", "Update check snooze until UTC", string.Empty);
         GM = Config.Bind("Client Options", "Game Master", false);
         ShowFps = Config.Bind("Client Options", "Show FPS", false);
         AutoStart = Config.Bind("Client Options", "Auto Start", false);
@@ -131,6 +135,7 @@ public partial class Main : BasePlugin
         Harmony.PatchAll();
 
         ConsoleManager.DetachConsole();
+        VersionUpdateNotifier.Initialize();
     }
 
     [HarmonyPatch(typeof(ModManager), nameof(ModManager.LateUpdate))]
@@ -139,6 +144,7 @@ public partial class Main : BasePlugin
         public static void Prefix(ModManager __instance)
         {
             LateTask.Update(Time.deltaTime);
+            VersionUpdateNotifier.Pump();
         }
     }
 

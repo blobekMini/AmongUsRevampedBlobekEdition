@@ -187,7 +187,7 @@ public sealed class InGameCommandConsole : MonoBehaviour
     private void DrawWindowContents()
     {
         GUILayout.BeginVertical();
-        GUILayout.Label("Choose a category and command, or type a command below. Tab completes commands, players, roles, and colors.");
+        GUILayout.Label("Select a command, then press RUN COMMAND or RUN USING THESE FIELDS to execute it. Tab completes commands, players, roles, and colors.");
 
         string[] categoryLabels = categories.Length == 0 ? new[] { "All" } : categories;
         int categoryIndex = Array.IndexOf(categoryLabels, selectedCategory);
@@ -271,7 +271,10 @@ public sealed class InGameCommandConsole : MonoBehaviour
         for (int index = 0; index < argumentTypes.Length; index++)
         {
             argumentValues[index] = argumentTypes[index] == "color" ? "red" :
-                argumentTypes[index] == "action" ? "status" : string.Empty;
+                argumentTypes[index] == "action" ? "status" :
+                argumentTypes[index] == "voteTarget" ? "@all" :
+                argumentTypes[index] == "count" ? "2" :
+                argumentTypes[index] == "room" ? "!room:security" : string.Empty;
             targetSelections[index] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         }
 
@@ -300,6 +303,22 @@ public sealed class InGameCommandConsole : MonoBehaviour
                     GUILayout.Height(Math.Min(86f, 27f * Math.Max(1, (choices.Length + 2) / 3))));
                 if (next >= 0 && next < choices.Length)
                     argumentValues[index] = choices[next] == "Select player..." ? string.Empty : choices[next];
+            }
+            else if (type == "room")
+            {
+                string[] choices = { "!room:security", "!room:cafeteria", "!room:o2", "!room:navigation" };
+                int current = Array.IndexOf(choices, argumentValues[index]);
+                int next = GUILayout.SelectionGrid(current, choices, 2, GUILayout.Height(50f));
+                if (next >= 0 && next < choices.Length) argumentValues[index] = choices[next];
+                GUILayout.Label("Only rooms present on the current map can be selected.");
+            }
+            else if (type == "voteTarget")
+            {
+                string[] choices = GetPlayerChoices(true);
+                int current = Array.IndexOf(choices, argumentValues[index]);
+                int next = GUILayout.SelectionGrid(current, choices, 3,
+                    GUILayout.Height(Math.Min(86f, 27f * Math.Max(1, (choices.Length + 2) / 3))));
+                if (next >= 0 && next < choices.Length) argumentValues[index] = choices[next];
             }
             else if (type is "targetPlayers" or "players")
             {
@@ -418,6 +437,7 @@ public sealed class InGameCommandConsole : MonoBehaviour
         return type switch
         {
             "targetPlayer" => "Target player",
+            "voteTarget" => "Voter(s): player, !color:<color>, @all, or @me",
             "sourcePlayer" => "Source player",
             "player" => "Player",
             "targetPlayers" or "players" => "Target players",
@@ -427,6 +447,7 @@ public sealed class InGameCommandConsole : MonoBehaviour
             "template" => "Template name",
             "action" => "Action",
             "voteOption" => "Vote option",
+            "room" => "Destination room",
             _ => $"Argument {index + 1}"
         };
     }
@@ -441,6 +462,8 @@ public sealed class InGameCommandConsole : MonoBehaviour
         {
             choices.Insert(0, "@all");
             choices.AddRange(Enum.GetNames(typeof(Main.ColorToString)).Select(color => "!color:" + color));
+            choices.Add("!color:gay");
+            choices.Add("!color:rainbow");
         }
         foreach (PlayerControl player in PlayerControl.AllPlayerControls)
         {
@@ -453,7 +476,7 @@ public sealed class InGameCommandConsole : MonoBehaviour
     private static string[] GetColorChoices(string command)
     {
         string[] colors = Enum.GetNames(typeof(Main.ColorToString));
-        return SupportsRainbowOptions(command) ? colors.Concat(new[] { "rainbow", "stop" }).ToArray() : colors;
+        return SupportsRainbowOptions(command) ? colors.Concat(new[] { "rainbow", "gay", "stop" }).ToArray() : colors;
     }
 
     private static bool SupportsRainbowOptions(string command)

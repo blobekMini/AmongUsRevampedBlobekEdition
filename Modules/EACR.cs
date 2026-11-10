@@ -16,7 +16,7 @@ internal class EACR
         "/col", "/color", "/colour", "/colout", "/ucol", "/ucolor", "/ucolour", "/ucolout",
         "/give", "/set", "/add", "/rolereset", "/playerreset", "/voteout", "/cvoteout",
         "/kick", "/ckick", "/ban", "/cban", "/em", "/endmeeting", "/sm", "/skip", "/skipmeeting",
-        "/eg", "/endgame", "/s", "/start", "/private", "/public", "/mapvote", "/gmvote"
+        "/eg", "/endgame", "/s", "/start", "/private", "/public", "/mapvote", "/gmvote", "/tp", "/teleport", "/impregnate"
     };
 
     public static void BeginCommandGrace(PlayerControl player = null)

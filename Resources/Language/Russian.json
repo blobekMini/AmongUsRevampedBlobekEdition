@@ -333,7 +333,7 @@
   "seekersDesc": "Показывает всех вручную выбранных искателей.",
   "clearSeekerDesc": "Очищает список всех вручную выбранных искателей",
 
-  "slashEndMeetingCmd": "Кто может использовать /em, /endmeeting, /sm и /skipmeeting",
+  "slashEndMeetingCmd": "Кто может использовать /em, /endmeeting, /sm, /skipmeeting и /setvotes",
 
   "gameMasterWarning":"Вы будете наблюдать игры пока включён режим наблюдателя. ВНИМАНИЕ: Назначение ролей может быть неправильным, если эта настройка включена.",
 

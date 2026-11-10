@@ -22,7 +22,8 @@ internal static class CommandBindings
     {
         "/give", "/set", "/add", "/rolereset", "/playerreset", "/voteout", "/cvoteout", "/revive",
         "/copyfit", "/kill", "/tm", "/tiemeeting", "/impcount", "/setimp", "/settings", "/em", "/endmeeting",
-        "/sm", "/skip", "/skipmeeting", "/color", "/colour", "/col", "/colout", "/ucolor",
+        "/sm", "/skip", "/skipmeeting", "/color", "/colour", "/col", "/colout", "/ucolor", "/tp", "/teleport",
+            "/sm", "/skip", "/skipmeeting", "/color", "/colour", "/col", "/colout", "/ucolor", "/tp", "/teleport", "/impregnate",
         "/ucolour", "/ucol", "/ucolout", "/start", "/s", "/endgame", "/eg", "/mapvote", "/gmvote"
     };
 
@@ -101,7 +102,7 @@ internal static class CommandBindings
 
         if (arguments.Equals("help", StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(arguments))
         {
-            Reply("Usage: /bind '<command template>' '<trigger template>' [;:prefix;] | /bind list | /bind remove '<trigger>'\nExample: /bind 'ucolor gay ;' 'make ; gay' ;:!color:;");
+            Reply("Usage: /bind '<command template>' '<trigger template>' [;:prefix;] | /bind list | /bind remove '<trigger>'\nMatched trigger text is shown in chat by default; start the trigger with # to hide it.\nExample: /bind 'ucolor gay ;' 'make ; gay' ;:!color:;");
             return true;
         }
 
@@ -144,7 +145,7 @@ internal static class CommandBindings
     {
         if (AmongUsClient.Instance == null || !AmongUsClient.Instance.AmHost || PlayerControl.LocalPlayer == null || string.IsNullOrWhiteSpace(input)) return false;
         string[] inputWords = SplitWords(input);
-        if (inputWords.Length == 0 || inputWords.Any(word => !IsAsciiAlphaNumeric(word))) return false;
+        if (inputWords.Length == 0 || inputWords.Where((word, index) => !IsValidTriggerWord(word, index)).Any()) return false;
 
         Binding match = null;
         string value = null;
@@ -160,7 +161,15 @@ internal static class CommandBindings
                 bool matches = true;
                 for (int index = 0; index < triggerWords.Length; index++)
                 {
-                    if (index == valueIndex) continue;
+                    if (index == valueIndex)
+                    {
+                        if (!IsAsciiAlphaNumeric(inputWords[index]))
+                        {
+                            matches = false;
+                            break;
+                        }
+                        continue;
+                    }
                     if (!triggerWords[index].Equals(inputWords[index], StringComparison.OrdinalIgnoreCase))
                     {
                         matches = false;
@@ -177,6 +186,16 @@ internal static class CommandBindings
 
         if (match == null) return false;
 
+        if (!match.TriggerTemplate.StartsWith("#", StringComparison.Ordinal))
+        {
+            string visibleInput = ChatCommandHelpers.SanitizeOutgoingChatText(input);
+            if (!string.IsNullOrWhiteSpace(visibleInput))
+            {
+                SendChatPatch.RegisterVisibleCommandEcho(visibleInput);
+                PlayerControl.LocalPlayer.RpcSendChat(visibleInput);
+            }
+        }
+
         string transformedValue = match.ValuePrefix + value;
         string command = string.Join(" ", SplitWords(match.CommandTemplate)
             .Select(word => word == ";" ? transformedValue : word));
@@ -191,7 +210,7 @@ internal static class CommandBindings
         string[] triggerWords = SplitWords(triggerTemplate);
         if (commandWords.Length < 2 || triggerWords.Length < 2 || triggerWords.Count(word => word == ";") != 1 ||
             !commandWords.Contains(";") || commandWords.Any(word => word.Contains(';') && word != ";") ||
-            triggerWords.Any(word => word != ";" && !IsAsciiAlphaNumeric(word)) ||
+            triggerWords.Where((word, index) => !IsValidTriggerWord(word, index)).Any() ||
             valuePrefix.Any(char.IsWhiteSpace) || valuePrefix.Contains(';')) return false;
 
         string commandRoot = "/" + commandWords[0].TrimStart('/', '!');
@@ -230,6 +249,9 @@ internal static class CommandBindings
 
     private static string[] SplitWords(string text) => (text ?? string.Empty)
         .Split((char[])null, StringSplitOptions.RemoveEmptyEntries);
+
+    private static bool IsValidTriggerWord(string word, int index) => word == ";" || IsAsciiAlphaNumeric(word) ||
+        (index == 0 && word.Length > 1 && word[0] == '#' && IsAsciiAlphaNumeric(word.Substring(1)));
 
     private static bool IsAsciiAlphaNumeric(string value) => value.Length > 0 && value.All(character =>
         character is >= 'A' and <= 'Z' or >= 'a' and <= 'z' or >= '0' and <= '9');

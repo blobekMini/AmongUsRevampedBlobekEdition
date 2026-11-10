@@ -15,7 +15,10 @@ internal static class ChatCommandHelpers
     private static readonly Dictionary<byte, byte> OriginalPlayerColors = new();
     private static readonly Dictionary<byte, RoleTypes> OriginalRolesBeforeGive = new();
     private static readonly Dictionary<byte, RoleTypes> RolesBeforeDeath = new();
-    private const int PageBodyLimit = 90;
+    private const int PageBodyLimit = 108;
+    private const int MaxAutomaticOutputMessages = 3;
+    private static DateTime nextCommandOutputUtc;
+    private static int commandOutputBatchSequence;
     private sealed class PagedOutput
     {
         public int ClientId { get; init; }
@@ -141,7 +144,7 @@ internal static class ChatCommandHelpers
         if (pages.Length == 0) return;
         if (pages.Length == 1)
         {
-            SendPageToLobby(requester, pages[0], 1, 1);
+            SendCommandOutputBatch(requester, pages, 0);
             return;
         }
 
@@ -154,19 +157,30 @@ internal static class ChatCommandHelpers
             CreatedUtc = DateTime.UtcNow
         };
         Logger.Info($"Stored {pages.Length} output pages for {requester.Data.PlayerName} from {command}.", "CommandPages");
-        SendPageToLobby(requester, pages[0], 1, pages.Length);
-        if (pages.Length > 1)
+        SendCommandOutputBatch(requester, pages, 0);
+    }
+
+    private static void SendCommandOutputBatch(PlayerControl requester, string[] pages, int startPage)
+    {
+        int messageCount = Math.Min(MaxAutomaticOutputMessages, pages.Length - startPage);
+        if (messageCount <= 0) return;
+
+        DateTime now = DateTime.UtcNow;
+        DateTime firstSendUtc = nextCommandOutputUtc > now ? nextCommandOutputUtc : now;
+        int batch = ++commandOutputBatchSequence;
+        for (int offset = 0; offset < messageCount; offset++)
         {
-            string hint = $"More: /page <n> {command.Trim()}";
-            if (hint.Length > 100) hint = "More: /page <n> <command> <args>";
-            int requesterClientId = requester.Data.ClientId;
+            int pageIndex = startPage + offset;
+            DateTime scheduledUtc = firstSendUtc.AddMilliseconds(offset * 100);
+            float delaySeconds = Math.Max(0f, (float)(scheduledUtc - now).TotalSeconds);
             new LateTask(() =>
             {
-                if (AmongUsClient.Instance == null || !AmongUsClient.Instance.AmHost ||
-                    (requester != PlayerControl.LocalPlayer && Utils.GetClientById(requesterClientId) == null)) return;
-                SendPageToLobby(requester, hint, 1, 1);
-            }, 1.25f, "CommandPageHint", false);
+                if (AmongUsClient.Instance == null || !AmongUsClient.Instance.AmHost || PlayerControl.LocalPlayer == null) return;
+                SendPageToLobby(requester, pages[pageIndex], pageIndex + 1, pages.Length);
+            }, delaySeconds, $"CommandOutputBatch_{batch}_{offset}", false);
         }
+
+        nextCommandOutputUtc = firstSendUtc.AddMilliseconds((messageCount - 1) * 100).AddSeconds(5);
     }
 
     public static string SanitizeOutgoingChatText(string text)
@@ -209,7 +223,12 @@ internal static class ChatCommandHelpers
 
     private static void SendPageFeedback(PlayerControl requester, string text)
     {
-        if (requester?.Data == null || PlayerControl.LocalPlayer == null || text.Length > 100) return;
+        if (requester?.Data == null || PlayerControl.LocalPlayer == null) return;
+        if (text.Length > PageBodyLimit)
+        {
+            ShowPagedOutput(requester, "/page", text);
+            return;
+        }
         string safeText = SanitizeOutgoingChatText(text);
         if (string.IsNullOrWhiteSpace(safeText)) return;
 
@@ -219,8 +238,7 @@ internal static class ChatCommandHelpers
             Logger.Info($"Suppressed public page feedback requested by {requester.Data.PlayerName}: {safeText}", "RemoteCommandFeedback");
             return;
         }
-        SendChatPatch.RegisterVisibleCommandEcho(safeText);
-        PlayerControl.LocalPlayer.RpcSendChat(safeText);
+        SendCommandOutputBatch(requester, new[] { safeText }, 0);
     }
 
     public static bool HandlePageCommand(PlayerControl requester, string text)
@@ -256,14 +274,25 @@ internal static class ChatCommandHelpers
             return true;
         }
 
-        SendPageToLobby(requester, output.Pages[pageNumber - 1], pageNumber, output.Pages.Length);
+        SendCommandOutputBatch(requester, output.Pages, pageNumber - 1);
         return true;
     }
 
     public static void ShowHelpPages(PlayerControl requester)
     {
-        string helpText = $"{Translator.Get("allCommandsFull")}\n\n{Translator.Get("recentCommandsHelp")}\n\n{Translator.Get("meetingCommandsHelp")}";
+        string helpText = GetFullCommandHelp();
         ShowPagedOutput(requester, "/help", helpText);
+    }
+
+    public static string GetFullCommandHelp()
+    {
+        return $"{Translator.Get("allCommandsFull")}\n\n<b>/tp, /teleport</b>\nTeleport one player to !room:security, !room:cafeteria, !room:o2, or !room:navigation during a game.\n\n<b>/impregnate &lt;player1&gt; &lt;player2&gt; &lt;player3&gt;</b>\nTeleport player2 to player1, freeze them, move player1 between their starting positions for 10 seconds, then place player3 midway and restore movement.\n\n<b>Rainbow selectors</b>\n!color:gay and !color:rainbow select players with an active rainbow cycle.\n\n{Translator.Get("recentCommandsHelp")}\n\n{Translator.Get("meetingCommandsHelp")}";
+    }
+
+    private static bool IsRainbowColorSelector(string input)
+    {
+        return input.Equals("!color:gay", StringComparison.OrdinalIgnoreCase) ||
+            input.Equals("!color:rainbow", StringComparison.OrdinalIgnoreCase);
     }
 
     public static bool TryResolvePlayerTargets(string input, bool allowAll, out List<PlayerControl> targets, out string error, PlayerControl sender = null)
@@ -296,6 +325,14 @@ internal static class ChatCommandHelpers
             }
             if (targets.Count > 0) return true;
             error = "There are no connected players to match @all.";
+            return false;
+        }
+
+        if (IsRainbowColorSelector(input))
+        {
+            targets.AddRange(RainbowColorCycle.GetCyclingPlayers());
+            if (targets.Count > 0) return true;
+            error = "No players are currently using a rainbow color cycle.";
             return false;
         }
 
@@ -518,125 +555,22 @@ internal static class ChatCommandHelpers
             return false;
         }
 
-        if (summarizeVotes)
+        string feedback = summarizeVotes
+            ? "Summarizing votes and ending the meeting."
+            : "Ending the meeting without summarizing votes.";
+        if (LocalCommandPanel.IsCapturingCommandOutput)
+            LocalCommandPanel.CaptureCommandOutput(feedback);
+        else if (sender == PlayerControl.LocalPlayer)
+            HudManager.Instance.Chat.AddChat(PlayerControl.LocalPlayer, feedback);
+        else
+            Logger.Info($"Suppressed public meeting-end feedback requested by {sender.Data?.PlayerName ?? "unknown player"}.", "RemoteCommandFeedback");
+
+        OnGameJoinedPatch.WaitingForChat = true;
+        new LateTask(() =>
         {
-            List<string> voteLines = new();
-            foreach (PlayerVoteArea voteArea in meeting.playerStates)
-            {
-                if (voteArea == null || voteArea.AmDead) continue;
-
-                byte voterId = (byte)voteArea.PlayerId;
-                PlayerControl voter = null;
-                foreach (PlayerControl player in PlayerControl.AllPlayerControls)
-                {
-                    if (player != null && player.PlayerId == voterId)
-                    {
-                        voter = player;
-                        break;
-                    }
-                }
-                if (voter?.Data == null) continue;
-
-                string voteDescription;
-                if (!voteArea.DidVote)
-                {
-                    voteDescription = "no vote";
-                }
-                else
-                {
-                    byte votedForId = (byte)voteArea.VotedForId;
-                    if (votedForId == byte.MaxValue)
-                    {
-                        voteDescription = "skipped";
-                    }
-                    else
-                    {
-                        PlayerControl votedFor = null;
-                        foreach (PlayerControl player in PlayerControl.AllPlayerControls)
-                        {
-                            if (player != null && player.PlayerId == votedForId)
-                            {
-                                votedFor = player;
-                                break;
-                            }
-                        }
-                        voteDescription = votedFor?.Data?.PlayerName ?? "unknown";
-                    }
-                }
-
-                voteLines.Add($"{SanitizeOutgoingChatText(voter.Data.PlayerName)} voted {SanitizeOutgoingChatText(voteDescription)}");
-            }
-
-            List<string> messages = new();
-            string currentMessage = "Votes:";
-            foreach (string voteLine in voteLines)
-            {
-                string line = voteLine.Length > 90 ? voteLine.Substring(0, 90) : voteLine;
-                if (currentMessage.Length + line.Length + 1 > 100)
-                {
-                    messages.Add(currentMessage);
-                    currentMessage = "Votes:";
-                }
-                currentMessage += " " + line;
-            }
-            if (voteLines.Count == 0) currentMessage = "Votes: no votes cast.";
-            messages.Add(currentMessage);
-
-            if (LocalCommandPanel.IsCapturingCommandOutput)
-            {
-                LocalCommandPanel.CaptureCommandOutput(string.Join(Environment.NewLine, messages));
-            }
-
-            OnGameJoinedPatch.WaitingForChat = true;
-            if (sender != PlayerControl.LocalPlayer)
-            {
-                Logger.Info($"Suppressed public /em vote summary requested by {sender.Data?.PlayerName ?? "unknown player"}.", "RemoteCommandFeedback");
-                new LateTask(() =>
-                {
-                    if (MeetingHud.Instance != null) CloseMeeting();
-                    else OnGameJoinedPatch.WaitingForChat = false;
-                }, 0.5f, "CloseMeetingAfterSuppressedVoteSummary");
-                return true;
-            }
-
-            for (int i = 0; i < messages.Count; i++)
-            {
-                string message = messages[i];
-                bool isLast = i == messages.Count - 1;
-                new LateTask(() =>
-                {
-                    if (AmongUsClient.Instance == null || !AmongUsClient.Instance.AmHost ||
-                        PlayerControl.LocalPlayer == null || MeetingHud.Instance == null)
-                    {
-                        if (isLast) OnGameJoinedPatch.WaitingForChat = false;
-                        return;
-                    }
-
-                    string safeMessage = SanitizeOutgoingChatText(message);
-                    if (!string.IsNullOrWhiteSpace(safeMessage))
-                    {
-                        if (SendChatPatch.IsHandlingRemotePublicCommand)
-                        {
-                            Logger.Info($"Suppressed public meeting vote summary: {safeMessage}", "RemoteCommandFeedback");
-                        }
-                        else
-                        {
-                            Logger.Info($"Sending meeting vote summary: {safeMessage}", "MeetingVoteSummary");
-                            SendChatPatch.RegisterVisibleCommandEcho(safeMessage);
-                            PlayerControl.LocalPlayer.RpcSendChat(safeMessage);
-                        }
-                    }
-                    if (isLast)
-                    {
-                        new LateTask(CloseMeeting, 0.5f, "CloseMeetingAfterVoteSummary");
-                    }
-                }, 0.2f + i * 2.2f, $"MeetingVoteSummary{i}");
-            }
-
-            return true;
-        }
-
-        CloseMeeting();
+            if (MeetingHud.Instance != null) CloseMeeting();
+            else OnGameJoinedPatch.WaitingForChat = false;
+        }, 0.5f, summarizeVotes ? "CloseMeetingAfterVoteFeedback" : "CloseMeetingAfterSkipFeedback");
         return true;
     }
 
@@ -675,18 +609,28 @@ internal static class ChatCommandHelpers
                 roleType = RoleTypes.Scientist;
                 return true;
             case "engi":
+            case "eng":
             case "engineer":
                 roleType = RoleTypes.Engineer;
                 return true;
+            case "ss":
+            case "shifter":
+            case "shapeshifter":
+                roleType = RoleTypes.Shapeshifter;
+                return true;
             case "angel":
+            case "ga":
             case "guardianangel":
                 roleType = RoleTypes.GuardianAngel;
                 return true;
             case "noise":
+            case "nm":
+            case "nana":
             case "noisemaker":
                 roleType = RoleTypes.Noisemaker;
                 return true;
             case "track":
+            case "trk":
             case "tracker":
                 roleType = RoleTypes.Tracker;
                 return true;
@@ -695,11 +639,19 @@ internal static class ChatCommandHelpers
                 roleType = RoleTypes.Detective;
                 return true;
             case "judge":
+            case "jg":
                 roleType = RoleTypes.Judge;
                 return true;
             case "spirit":
+            case "sg":
             case "spiritguide":
                 roleType = RoleTypes.SpiritGuide;
+                return true;
+            case "ph":
+                roleType = RoleTypes.Phantom;
+                return true;
+            case "v":
+                roleType = RoleTypes.Viper;
                 return true;
             default:
                 if (normalized.Any(char.IsLetter) && Enum.TryParse(normalized, true, out roleType) &&
@@ -739,7 +691,7 @@ internal static class ChatCommandHelpers
             "/give" or "/set" or "/add" => Options.SlashGiveCmd,
             "/rolereset" or "/playerreset" => Options.SlashResetCmd,
             "/impcount" or "/setimp" => Options.SlashImpCountCmd,
-            "/voteout" or "/cvoteout" or "/tm" or "/tiemeeting" => Options.SlashVoteOutCmd,
+            "/voteout" or "/cvoteout" or "/tm" or "/tiemeeting" or "/setvotes" => Options.SlashVoteOutCmd,
             "/revive" => Options.SlashReviveCmd,
             "/r" or "/roles" or "/0kc" or "/0killcooldown" or "/sns" or "/shiftandseek" or
             "/sns2" or "/shiftandseek2" or "/sr" or "/speedrun" or "/pns" or "/poofandseek" or "/t" => Options.SlashRolesAndGamemodeCmd,
@@ -751,7 +703,8 @@ internal static class ChatCommandHelpers
             "/s" or "/start" or "/eg" or "/endgame" or "/private" or "/public" => Options.SlashStartAndEndGameCmd,
             "/vip" or "/moderator" or "/admin" or "/removevip" or "/removemoderator" or
             "/removeadmin" or "/whitelist" => Options.SlashAdminListCmd,
-            "/kill" => Options.SlashKillCmd,
+            "/kill" or "/tp" or "/teleport" => Options.SlashKillCmd,
+                        "/kill" or "/tp" or "/teleport" or "/impregnate" => Options.SlashKillCmd,
             "/settings" => Options.SlashSettingsCmd,
             "/help" or "/page" or "/dump" or "/reload" => Options.SlashUtilityCmd,
             _ => Options.SlashUtilityCmd
@@ -1289,6 +1242,60 @@ internal static class ChatCommandHelpers
         return true;
     }
 
+    public static bool HandleSetVotesCommand(PlayerControl sender, string text)
+    {
+        if (AmongUsClient.Instance == null || !AmongUsClient.Instance.AmHost || sender != PlayerControl.LocalPlayer)
+        {
+            HudManager.Instance?.Chat?.AddChat(PlayerControl.LocalPlayer, "Only the local host can use /setvotes.");
+            return false;
+        }
+
+        MeetingHud meeting = MeetingHud.Instance;
+        if (!Utils.IsMeeting || meeting == null)
+        {
+            HudManager.Instance.Chat.AddChat(PlayerControl.LocalPlayer, "/setvotes can only be used during a meeting.");
+            return false;
+        }
+
+        string arguments = text.Substring("/setvotes".Length).Trim();
+        int separator = arguments.LastIndexOfAny(new[] { ' ', '\t' });
+        if (separator <= 0 || !int.TryParse(arguments.Substring(separator + 1).Trim(), out int count) || count < 0 || count > 100)
+        {
+            HudManager.Instance.Chat.AddChat(PlayerControl.LocalPlayer, "Usage: /setvotes <player|!color:color|@all|@me> <0-100>");
+            return false;
+        }
+
+        string selector = arguments.Substring(0, separator).Trim().Trim('"', '\'');
+        if (!TryResolvePlayerTargets(selector, true, out List<PlayerControl> targets, out string error, sender))
+        {
+            HudManager.Instance.Chat.AddChat(PlayerControl.LocalPlayer, error);
+            return false;
+        }
+
+        List<PlayerControl> eligibleTargets = targets
+            .Where(target => target?.Data != null && !target.Data.Disconnected && !target.Data.IsDead &&
+                meeting.playerStates.Any(voter => voter != null && voter.PlayerId == target.PlayerId && !voter.AmDead))
+            .GroupBy(target => target.PlayerId)
+            .Select(group => group.First())
+            .ToList();
+        if (eligibleTargets.Count == 0)
+        {
+            HudManager.Instance.Chat.AddChat(PlayerControl.LocalPlayer, "No living voters matched that selector.");
+            return false;
+        }
+
+        foreach (PlayerControl target in eligibleTargets)
+            MeetingVoteWeights.Set(target.PlayerId, count);
+
+        string targetSummary = selector.Equals("@all", StringComparison.OrdinalIgnoreCase)
+            ? "@all living players"
+            : string.Join(", ", eligibleTargets.Select(target => target.Data.PlayerName));
+        HudManager.Instance.Chat.AddChat(PlayerControl.LocalPlayer,
+            $"Set {targetSummary} to {count} vote(s) each for this meeting.");
+        Logger.Info($"{sender.Data.PlayerName} set {count} vote(s) for {targetSummary} until the meeting ends.", "SetVotesCommand");
+        return true;
+    }
+
     public static bool TryRevivePlayer(PlayerControl sender, string targetName = null)
     {
         if (!HasCommandAccess(sender, Options.SlashReviveCmd))
@@ -1482,6 +1489,219 @@ internal static class ChatCommandHelpers
         return true;
     }
 
+    public static bool HandleTeleportCommand(PlayerControl sender, string text)
+    {
+        string commandRoot = text.Split(new[] { ' ', '\t' }, 2, StringSplitOptions.RemoveEmptyEntries)
+            .FirstOrDefault()?.ToLowerInvariant();
+        if (commandRoot is not ("/tp" or "/teleport")) return false;
+        if (AmongUsClient.Instance == null || !AmongUsClient.Instance.AmHost || !HasCommandAccess(sender, Options.SlashKillCmd))
+        {
+            WriteTeleportFeedback(Translator.Get("accessDenied", commandRoot));
+            return false;
+        }
+        if (!Utils.InGame || Utils.IsMeeting || MeetingHud.Instance != null || ShipStatus.Instance == null)
+        {
+            WriteTeleportFeedback("Teleport is only available during a game outside meetings.");
+            return false;
+        }
+
+        string[] arguments = text.Trim().Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+        if (arguments.Length < 3 || !arguments[^1].StartsWith("!room:", StringComparison.OrdinalIgnoreCase))
+        {
+            WriteTeleportFeedback($"Usage: {commandRoot} <player|@me> !room:<security|cafeteria|o2|navigation>");
+            return false;
+        }
+        string playerSelector = string.Join(" ", arguments.Skip(1).Take(arguments.Length - 2)).Trim().Trim('"', '\'');
+        List<PlayerControl> targets;
+        PlayerControl exactNameMatch = null;
+        foreach (PlayerControl player in PlayerControl.AllPlayerControls)
+        {
+            if (player?.Data != null && !player.Data.Disconnected &&
+                player.Data.PlayerName.Equals(playerSelector, StringComparison.OrdinalIgnoreCase))
+            {
+                exactNameMatch = player;
+                break;
+            }
+        }
+        if (exactNameMatch != null)
+        {
+            targets = new List<PlayerControl> { exactNameMatch };
+        }
+        else if (!TryResolvePlayerTargets(playerSelector, false, out targets, out string error, sender))
+        {
+            WriteTeleportFeedback(error);
+            return false;
+        }
+        if (targets.Count != 1 || targets[0]?.Data == null || targets[0].Data.Disconnected)
+        {
+            WriteTeleportFeedback("Choose exactly one connected player to teleport.");
+            return false;
+        }
+        if (!TryResolveTeleportRoom(arguments[2], out SystemTypes roomType, out string roomName))
+        {
+            WriteTeleportFeedback("Room must be one of: security, cafeteria, o2, navigation.");
+            return false;
+        }
+
+        PlainShipRoom room = null;
+        if (ShipStatus.Instance.FastRooms != null)
+            ShipStatus.Instance.FastRooms.TryGetValue(roomType, out room);
+        if (room == null && ShipStatus.Instance.AllRooms != null)
+            room = ShipStatus.Instance.AllRooms.FirstOrDefault(candidate => candidate != null && candidate.RoomId == roomType);
+        if (room?.roomArea == null)
+        {
+            WriteTeleportFeedback($"{roomName} is not available on the current map.");
+            return false;
+        }
+
+        Vector3 center = room.roomArea.bounds.center;
+        targets[0].NetTransform.RpcSnapTo(new Vector2(center.x, center.y));
+        EACR.BeginCommandGrace(sender);
+        string result = $"Teleported {targets[0].Data.PlayerName} to {roomName}.";
+        WriteTeleportFeedback(result);
+        Logger.Info($"{sender.Data?.PlayerName ?? "Unknown"} teleported {targets[0].Data.PlayerName} to {roomName}.", "TeleportCommand");
+        return true;
+    }
+
+    public static bool HandleImpregnateCommand(PlayerControl sender, string text)
+    {
+        string commandRoot = text.Split(new[] { ' ', '\t' }, 2, StringSplitOptions.RemoveEmptyEntries)
+            .FirstOrDefault()?.ToLowerInvariant();
+        if (commandRoot != "/impregnate") return false;
+        if (AmongUsClient.Instance == null || !AmongUsClient.Instance.AmHost || !HasCommandAccess(sender, Options.SlashKillCmd))
+        {
+            WriteTeleportFeedback(Translator.Get("accessDenied", "/impregnate"));
+            return true;
+        }
+
+        if (!TrySplitCommandArguments(text.Substring(commandRoot.Length).Trim(), out List<string> selectors) || selectors.Count != 3)
+        {
+            WriteTeleportFeedback("Usage: /impregnate <player1> <player2> <player3>. Quote names that contain spaces.");
+            return true;
+        }
+
+        List<PlayerControl> targets = new();
+        foreach (string selector in selectors)
+        {
+            PlayerControl exactNameMatch = null;
+            foreach (PlayerControl player in PlayerControl.AllPlayerControls)
+            {
+                if (player?.Data != null && !player.Data.Disconnected &&
+                    player.Data.PlayerName.Equals(selector, StringComparison.OrdinalIgnoreCase))
+                {
+                    exactNameMatch = player;
+                    break;
+                }
+            }
+
+            if (exactNameMatch != null)
+            {
+                targets.Add(exactNameMatch);
+                continue;
+            }
+
+            if (!TryResolvePlayerTargets(selector, false, out List<PlayerControl> matches, out string error, sender) || matches.Count != 1)
+            {
+                WriteTeleportFeedback(string.IsNullOrEmpty(error)
+                    ? $"Each /impregnate argument must match exactly one player: {selector}"
+                    : error);
+                return true;
+            }
+            targets.Add(matches[0]);
+        }
+
+        if (targets.Select(target => target.PlayerId).Distinct().Count() != 3)
+        {
+            WriteTeleportFeedback("/impregnate needs three different players.");
+            return true;
+        }
+
+        bool started = ImpregnatePlayerSequence.TryStart(targets[0], targets[1], targets[2], out string result);
+        if (LocalCommandPanel.IsCapturingCommandOutput)
+            LocalCommandPanel.CaptureCommandOutput(result);
+        else if (sender == PlayerControl.LocalPlayer)
+            HudManager.Instance?.Chat?.AddChat(PlayerControl.LocalPlayer, result);
+        else
+            Logger.Info($"Remote /impregnate request from {sender.Data?.PlayerName ?? "unknown"}: {result}", "ImpregnateCommand");
+        return true;
+    }
+
+    private static bool TrySplitCommandArguments(string input, out List<string> arguments)
+    {
+        arguments = new List<string>();
+        if (string.IsNullOrWhiteSpace(input)) return false;
+
+        System.Text.StringBuilder argument = new();
+        char quote = '\0';
+        foreach (char character in input)
+        {
+            if (quote != '\0')
+            {
+                if (character == quote) quote = '\0';
+                else argument.Append(character);
+                continue;
+            }
+            if (character is '\'' or '"')
+            {
+                quote = character;
+                continue;
+            }
+            if (char.IsWhiteSpace(character))
+            {
+                if (argument.Length > 0)
+                {
+                    arguments.Add(argument.ToString());
+                    argument.Clear();
+                }
+                continue;
+            }
+            argument.Append(character);
+        }
+        if (quote != '\0') return false;
+        if (argument.Length > 0) arguments.Add(argument.ToString());
+        return arguments.Count > 0;
+    }
+
+    private static bool TryResolveTeleportRoom(string selector, out SystemTypes roomType, out string roomName)
+    {
+        roomType = SystemTypes.Hallway;
+        roomName = string.Empty;
+        string room = selector.Substring("!room:".Length).Trim().ToLowerInvariant();
+        switch (room)
+        {
+            case "security":
+            case "sec":
+                roomType = SystemTypes.Security;
+                roomName = "Security";
+                return true;
+            case "cafeteria":
+            case "cafe":
+                roomType = SystemTypes.Cafeteria;
+                roomName = "Cafeteria";
+                return true;
+            case "o2":
+            case "oxygen":
+                roomType = SystemTypes.LifeSupp;
+                roomName = "O2";
+                return true;
+            case "navigation":
+            case "nav":
+                roomType = SystemTypes.Nav;
+                roomName = "Navigation";
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private static void WriteTeleportFeedback(string message)
+    {
+        if (LocalCommandPanel.IsCapturingCommandOutput)
+            LocalCommandPanel.CaptureCommandOutput(message);
+        else if (PlayerControl.LocalPlayer != null)
+            HudManager.Instance?.Chat?.AddChat(PlayerControl.LocalPlayer, message);
+    }
+
     public static bool HandleKickBanCommand(PlayerControl sender, string text)
     {
         string root = text.Split(new[] { ' ', '\t' }, 2, StringSplitOptions.RemoveEmptyEntries)
@@ -1498,16 +1718,20 @@ internal static class ChatCommandHelpers
         }
 
         string argument = text.Substring(root.Length).Trim();
+        bool explicitlySelectingRainbowPlayers = IsRainbowColorSelector(argument);
         if (string.IsNullOrWhiteSpace(argument))
         {
             HudManager.Instance.Chat.AddChat(PlayerControl.LocalPlayer, $"Usage: {root} <player|@all|@me|!color:name>");
             return true;
         }
 
-        if (root is "/ckick" or "/cban" && !argument.StartsWith("!color:", StringComparison.OrdinalIgnoreCase) &&
-            !argument.StartsWith('@') && Utils.TryGetColorId(argument, out _))
+        bool rainbowAlias = argument.Equals("gay", StringComparison.OrdinalIgnoreCase) ||
+            argument.Equals("rainbow", StringComparison.OrdinalIgnoreCase);
+        if ((root is "/ckick" or "/cban") && !argument.StartsWith("!color:", StringComparison.OrdinalIgnoreCase) &&
+            !argument.StartsWith('@') && (rainbowAlias || Utils.TryGetColorId(argument, out _)))
         {
             argument = "!color:" + argument;
+            explicitlySelectingRainbowPlayers = IsRainbowColorSelector(argument);
         }
 
         if (!TryResolvePlayerTargets(argument, true, out List<PlayerControl> targets, out string error, sender))
@@ -1515,6 +1739,11 @@ internal static class ChatCommandHelpers
             HudManager.Instance.Chat.AddChat(PlayerControl.LocalPlayer, error);
             return true;
         }
+
+        bool colorGroupSelection = root is "/ckick" or "/cban" ||
+            argument.StartsWith("!color:", StringComparison.OrdinalIgnoreCase);
+        if (colorGroupSelection && !explicitlySelectingRainbowPlayers)
+            targets = targets.Where(target => !RainbowColorCycle.IsCycling(target)).ToList();
 
         bool protectPrivilegedPlayers = sender != PlayerControl.LocalPlayer;
         targets = targets
@@ -1638,8 +1867,7 @@ internal static class ChatCommandHelpers
             switch (root)
             {
                 case "/help":
-                    LocalCommandPanel.CaptureCommandOutput(
-                        $"{Translator.Get("allCommandsFull")}\n\n{Translator.Get("recentCommandsHelp")}\n\n{Translator.Get("meetingCommandsHelp")}");
+                    LocalCommandPanel.CaptureCommandOutput(GetFullCommandHelp());
                     break;
                 case "/give":
                     HandleRoleCommand(sender, text, false);
@@ -1670,6 +1898,13 @@ internal static class ChatCommandHelpers
                     break;
                 case "/kill":
                     HandleKillCommand(sender, text.Substring(root.Length).Trim());
+                    break;
+                case "/tp":
+                case "/teleport":
+                    HandleTeleportCommand(sender, text);
+                    break;
+                case "/impregnate":
+                    HandleImpregnateCommand(sender, text);
                     break;
                 case "/tm":
                 case "/tiemeeting":
@@ -1949,6 +2184,22 @@ internal static class RainbowColorCycle
     private static readonly Dictionary<byte, CycleState> CurrentColors = new();
     private static bool updateScheduled;
 
+    public static bool IsCycling(PlayerControl player)
+    {
+        return player != null && CurrentColors.ContainsKey(player.PlayerId);
+    }
+
+    public static PlayerControl[] GetCyclingPlayers()
+    {
+        List<PlayerControl> players = new();
+        foreach (PlayerControl player in PlayerControl.AllPlayerControls)
+        {
+            if (player?.Data != null && CurrentColors.ContainsKey(player.PlayerId))
+                players.Add(player);
+        }
+        return players.ToArray();
+    }
+
     public static void Start(PlayerControl player, byte[] colors = null, int intervalMs = 100)
     {
         if (player?.Data == null) return;
@@ -2225,12 +2476,7 @@ internal static class SendChatPatch
             return;
         }
 
-        new LateTask(() =>
-        {
-            if (AmongUsClient.Instance == null || !AmongUsClient.Instance.AmHost || PlayerControl.LocalPlayer == null) return;
-            RegisterVisibleCommandEcho(message);
-            PlayerControl.LocalPlayer.RpcSendChat(message);
-        }, 0f, "PublicCommandFeedback", false);
+        ChatCommandHelpers.ShowPagedOutput(PlayerControl.LocalPlayer, command, message);
     }
 
     private static string SanitizePublicFeedback(string text)
@@ -2311,7 +2557,24 @@ internal static class SendChatPatch
     public static bool Prefix(ChatController __instance)
     {
         string msgtext = __instance.freeChatField.textArea.text.Trim();
-        bool panelDispatch = LocalCommandPanel.IsCapturingCommandOutput;
+        bool panelDispatch = LocalCommandPanel.IsCapturingCommandOutput && !LocalCommandPanel.IsConsoleCommandDispatch;
+
+        if (!LocalCommandPanel.IsConsoleCommandDispatch &&
+            (msgtext.Equals("/say", StringComparison.OrdinalIgnoreCase) || msgtext.StartsWith("/say ", StringComparison.OrdinalIgnoreCase)))
+        {
+            string message = msgtext.Length > "/say".Length ? msgtext.Substring("/say".Length).Trim() : string.Empty;
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                HudManager.Instance.Chat.AddChat(PlayerControl.LocalPlayer, "Usage: /say <message>");
+                ChatCommandHelpers.ClearChatInput(__instance);
+                return false;
+            }
+
+            // Replace the command with plain text and let the game's normal chat pipeline send/filter it.
+            __instance.freeChatField.textArea.SetText(message);
+            return true;
+        }
+
         bool privateInput = msgtext.StartsWith("!", StringComparison.Ordinal);
         bool privateCommand = privateInput && !panelDispatch;
         bool publicCommand = msgtext.StartsWith("/", StringComparison.Ordinal) && !panelDispatch;
@@ -2416,6 +2679,21 @@ internal static class SendChatPatch
             return false;
         }
 
+        if (text == "/tp" || text.StartsWith("/tp ", StringComparison.Ordinal) ||
+            text == "/teleport" || text.StartsWith("/teleport ", StringComparison.Ordinal))
+        {
+            ChatCommandHelpers.HandleTeleportCommand(PlayerControl.LocalPlayer, msgtext);
+            ChatCommandHelpers.ClearChatInput(__instance);
+            return false;
+        }
+
+        if (text == "/impregnate" || text.StartsWith("/impregnate ", StringComparison.Ordinal))
+        {
+            ChatCommandHelpers.HandleImpregnateCommand(PlayerControl.LocalPlayer, msgtext);
+            ChatCommandHelpers.ClearChatInput(__instance);
+            return false;
+        }
+
         if (text == "/reload")
         {
             HudManager.Instance.Chat.AddChat(PlayerControl.LocalPlayer, $"{Translator.Get("translationReloaded")}");
@@ -2434,8 +2712,8 @@ internal static class SendChatPatch
         }
         if (text == "/help")
         {
-            if (privateCommand)
-                LocalCommandPanel.CaptureCommandOutput($"{Translator.Get("allCommandsFull")}\n\n{Translator.Get("recentCommandsHelp")}\n\n{Translator.Get("meetingCommandsHelp")}");
+            if (privateCommand || LocalCommandPanel.IsConsoleCommandDispatch)
+                LocalCommandPanel.CaptureCommandOutput(ChatCommandHelpers.GetFullCommandHelp());
             __instance.freeChatField.textArea.Clear();
             __instance.freeChatField.textArea.SetText(string.Empty);
             return false;
@@ -2498,6 +2776,13 @@ internal static class SendChatPatch
         if (text == "/revive" || text.StartsWith("/revive ", StringComparison.Ordinal))
         {
             ChatCommandHelpers.TryRevivePlayer(PlayerControl.LocalPlayer, text.Length > "/revive".Length ? text.Substring("/revive".Length).Trim() : null);
+            ChatCommandHelpers.ClearChatInput(__instance);
+            return false;
+        }
+
+        if (text == "/setvotes" || text.StartsWith("/setvotes ", StringComparison.Ordinal))
+        {
+            ChatCommandHelpers.HandleSetVotesCommand(PlayerControl.LocalPlayer, msgtext);
             ChatCommandHelpers.ClearChatInput(__instance);
             return false;
         }
@@ -2743,7 +3028,7 @@ internal static class SendChatPatch
             return false;
         }
 
-        if (__instance.timeSinceLastMessage < 3f || OnGameJoinedPatch.WaitingForChat) return false;
+        if (!panelDispatch && (__instance.timeSinceLastMessage < 3f || OnGameJoinedPatch.WaitingForChat)) return false;
 
         if (text == "/mapvote")
         {
@@ -2873,7 +3158,7 @@ internal static class SendChatPatch
         if (text == "/aur" || text == "/socials")
         {
             Utils.ChatCommand(__instance,
-                "Blobek: blobek.net/aurbe\nGitHub: github.com/blobek/AmongUsRevampedBlobekEdition\nDiscord: blobekmini",
+                "Blobek: blobek.net/aurbe\nGitHub: github.com/blobekMini/AmongUsRevampedBlobekEdition\nDiscord: blobekmini",
                 "Original authors: ApeMV and contributors\nSource project: github.com/ApeMV/AmongUsRevamped", true);
             return false;
         }
@@ -3222,7 +3507,7 @@ public static class RPCHandlerPatch
                     if (text == "/help")
                     {
                         InGameCommandConsole.RecordCommandOutput($"/help requested by {__instance.Data.PlayerName}\n" +
-                            $"{Translator.Get("allCommandsFull")}\n\n{Translator.Get("recentCommandsHelp")}\n\n{Translator.Get("meetingCommandsHelp")}");
+                            ChatCommandHelpers.GetFullCommandHelp());
                         return;
                     }
 
@@ -3246,6 +3531,12 @@ public static class RPCHandlerPatch
                         return;
                     }
 
+                    if (text == "/setvotes" || text.StartsWith("/setvotes ", StringComparison.Ordinal))
+                    {
+                        ChatCommandHelpers.HandleSetVotesCommand(__instance, msgtext);
+                        return;
+                    }
+
                     if (text == "/tm" || text == "/tiemeeting")
                     {
                         ChatCommandHelpers.HandleTieMeetingCommand(__instance);
@@ -3261,6 +3552,19 @@ public static class RPCHandlerPatch
                     if (text == "/kill" || text.StartsWith("/kill ", StringComparison.Ordinal))
                     {
                         ChatCommandHelpers.HandleKillCommand(__instance, text.Substring("/kill".Length).Trim());
+                        return;
+                    }
+
+                    if (text == "/tp" || text.StartsWith("/tp ", StringComparison.Ordinal) ||
+                        text == "/teleport" || text.StartsWith("/teleport ", StringComparison.Ordinal))
+                    {
+                        ChatCommandHelpers.HandleTeleportCommand(__instance, msgtext);
+                        return;
+                    }
+
+                    if (text == "/impregnate" || text.StartsWith("/impregnate ", StringComparison.Ordinal))
+                    {
+                        ChatCommandHelpers.HandleImpregnateCommand(__instance, msgtext);
                         return;
                     }
 
@@ -3530,7 +3834,7 @@ public static class RPCHandlerPatch
                     {
                         if (Utils.CheckAccessLevel(__instance.Data.FriendCode) < Options.SlashLastGameCmd.GetValue()) return;
                         Utils.ModeratorChatCommand(
-                            "Blobek: blobek.net/aurbe\nGitHub: github.com/blobek/AmongUsRevampedBlobekEdition\nDiscord: blobekmini",
+                            "Blobek: blobek.net/aurbe\nGitHub: github.com/blobekMini/AmongUsRevampedBlobekEdition\nDiscord: blobekmini",
                             "Original authors: ApeMV and contributors\nSource project: github.com/ApeMV/AmongUsRevamped", true);
                     }
 

@@ -6,7 +6,7 @@
         <Version>2.3.0</Version>
         <AssemblyVersion>2.3.0.0</AssemblyVersion>
         <FileVersion>2.3.0.0</FileVersion>
-        <InformationalVersion>2.3.0.1.30</InformationalVersion>
+        <InformationalVersion>2.3.0.1.32</InformationalVersion>
         <DebugType>embedded</DebugType>
         <Description>Among Us Revamped Blobek Edition, a modified host-only derivative of ApeMV/AmongUsRevamped</Description>
         <Authors>Blobek Edition (based on ApeMV/AmongUsRevamped)</Authors>

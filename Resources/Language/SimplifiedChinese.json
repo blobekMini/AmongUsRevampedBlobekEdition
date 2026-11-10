@@ -55,7 +55,7 @@
   "slashLastGameCmd": "谁可以使用 /l 和 /aur 指令",
   "slashKickCmd": "谁可以使用 /kick 和 /ckick 指令",
   "slashBanCmd": "谁可以使用 /ban 和 /cban 指令",
-  "slashEndMeetingCmd": "谁可以使用 /em、/endmeeting、/sm 和 /skipmeeting 指令",
+  "slashEndMeetingCmd": "谁可以使用 /em、/endmeeting、/sm、/skipmeeting 和 /setvotes 指令",
   "slashStartAndEndGameCmd": "谁可以使用 /startgame 和 /endgame 指令",
 
   "tabGroupCrewmate": "船员职业",

@@ -55,7 +55,7 @@
   "slashLastGameCmd": "/l & /aur の使用権限",
   "slashKickCmd": "/kick & /ckick の使用権限",
   "slashBanCmd": "/ban & /cban の使用権限",
-  "slashEndMeetingCmd": "/em、/endmeeting、/sm、/skipmeeting の使用権限",
+  "slashEndMeetingCmd": "/em、/endmeeting、/sm、/skipmeeting、/setvotes の使用権限",
   "slashStartAndEndGameCmd": "/startgame & /endgame の使用権限",
 
   "tabGroupCrewmate": "クルー役職",
